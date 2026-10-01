@@ -1,0 +1,36 @@
+{
+  "name": "lucent-ha",
+  "version": "0.1.0",
+  "description": "Lucent design-language toolkit for Home Assistant custom panels and cards: tokens, device profiles, app shell, view stack, sheets, grids, images, states and generic controls (Lit 3).",
+  "type": "module",
+  "license": "MIT",
+  "author": "nphil",
+  "repository": { "type": "git", "url": "git+https://github.com/nphil/lucent-ha.git" },
+  "homepage": "https://github.com/nphil/lucent-ha#readme",
+  "bugs": { "url": "https://github.com/nphil/lucent-ha/issues" },
+  "keywords": ["home-assistant", "lovelace", "lit", "web-components", "design-system", "lucent"],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "docs", "LICENSE", "LICENSES", "THIRD_PARTY_NOTICES.md", "README.md", "CHANGELOG.md", "tsconfig.json"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "dev": "node dev/serve.mjs",
+    "dev:build": "node dev/build.mjs",
+    "perf": "node dev/perf-check.mjs",
+    "shots": "node dev/screenshots.mjs"
+  },
+  "peerDependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.25.0",
+    "lit": "^3.3.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.9.3"
+  }
+}
