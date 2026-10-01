@@ -16,6 +16,7 @@ export const BASE_CSS = css`
   button { color: inherit; }
   a { color: var(--lu-accent); }
   ${FOCUS_CSS}
+  button, a, input, select, textarea, summary, [tabindex] { scroll-margin-top: calc(var(--lu-top-chrome, 0px) + var(--lu-focus-scroll-clearance, 12px)); scroll-margin-bottom: calc(var(--lu-bottom-bar, 0px) + var(--lu-focus-scroll-clearance, 12px)); }
   .muted { color: var(--lu-ink-2); }
   .caption { color: var(--lu-ink-3); font-size: var(--lu-type-caption); }
   .icon { display: inline-block; flex: none; width: var(--lu-icon, 24px); height: var(--lu-icon, 24px); --mdc-icon-size: var(--lu-icon, 24px); fill: currentColor; }

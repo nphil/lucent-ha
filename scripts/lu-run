@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs a heavy local command (tsc, esbuild, node --test, node dev/*.mjs) the way the host rules require:
+# one at a time across every agent (flock), 4 GiB address-space cap, 1 GiB Node heap cap.
+exec flock /tmp/lucent-ha-heavy.lock prlimit --as=4294967296 env NODE_OPTIONS=--max-old-space-size=1024 "$@"

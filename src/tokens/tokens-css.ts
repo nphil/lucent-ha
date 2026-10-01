@@ -149,8 +149,11 @@ export const TOKENS_CSS = css`
 
     /* ---- shell: sizes the app shell publishes and consumers can build on ---- */
     --lu-app-bar: 56px;
+    /* Measured by the shell: the whole sticky top chrome (app bar + pills row), the fixed bottom bar incl. its safe area, the rail width. */
+    --lu-top-chrome: var(--lu-app-bar);
     --lu-bottom-bar: 0px;
     --lu-rail: 72px;
+    --lu-rail-w: 0px;
     --lu-content-max: 1600px;
     --lu-content-max-text: 1100px;
     --lu-tile-min: 176px;

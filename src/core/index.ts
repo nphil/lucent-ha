@@ -14,3 +14,5 @@ export { fireHaptic } from "./haptics.ts";
 export type { HapticKind } from "./haptics.ts";
 export { realScheduler, throttle } from "./throttle.ts";
 export type { Scheduler, Throttled } from "./throttle.ts";
+export { documentScroller, findScroller } from "./scroller.ts";
+export type { LuScroller } from "./scroller.ts";
