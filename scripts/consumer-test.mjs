@@ -4,7 +4,7 @@
  *   scripts/lu-browser node scripts/consumer-test.mjs [--spec <npm spec>]
  *
  * Default spec: the tarball `npm pack` makes from this checkout. After a release pass
- * `--spec github:nphil/lucent-ha#v0.1.0` to test the published tag. Uses /tmp/lucent-consumer-test (removed at the end). */
+ * `--spec github:nphil/lucent-ha#v0.1.1` to test the published tag. Uses /tmp/lucent-consumer-test (removed at the end). */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

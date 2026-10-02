@@ -2,6 +2,15 @@
 
 All notable changes to `lucent-ha`. Versions follow [semver](https://semver.org/); every release is a git tag `vX.Y.Z` with GitHub Release notes.
 
+## 0.1.1 - 2026-10-02
+
+Found by measuring Kestrel on the real Home Assistant 2026.9, at the host's normal load (15 to 25 on 16 threads).
+
+- **Sheet: a press on a button inside an open sheet no longer makes the browser redo a whole-screen filter.** Home Assistant's dialog scrim is `backdrop-filter: brightness(68%)` over the whole screen, and glass themes put `blur(8px)` over the whole panel. A backdrop filter is redone over its whole area whenever anything inside it changes, and on a browser without a GPU (the headless test browser, a weak device) that is CPU work. Measured before: the close button pressed in 55.8 / 53.5 / 49.3 ms in glass dark (phone 1x, phone 4x, Echo Show 1x) against 45.8 / 37.2 / 46.1 ms in flat light, and on the real Home Assistant (1920 px desktop) a recording row inside the sheet took 63 ms against 25 ms for a press that does nothing, with the display compositor spending 35 to 96 ms of CPU per pressed frame. The sheet now draws a scrim that only darkens as a black layer of its own (same motion), and, in Chromium-based browsers (where it was checked), a panel blur that only ever saw the scrim's flat colour as that colour under the panel; Safari, Firefox and every browser on iOS keep the panel's blur. Same picture (largest difference 1/255 in flat light, 2/255 at rest and 4/255 on a few pixels in mid-fade in glass dark), the display compositor now spends 1.8 to 3.1 ms per pressed frame, and the close button presses in 45.5 / 40.6 / 45.2 ms in glass dark (flat light unchanged). The choice is made at every opening and again when the theme changes while the sheet is open; scrims and blurs of any other kind are drawn with their filters as before (`dialogLook`, `docs/api/sheet.md`).
+- **`engine="auto"` has a measured price, now documented.** On the real Home Assistant 2026.9 at 4x CPU, Home Assistant's own dialog opened about 80 to 170 ms slower than `engine="native"` with the same content (species sheet 259 against 145 ms on a phone, 329 against 158 ms at 960 x 480; picker 138 against 58 ms), because it makes the browser recalculate the styles of the whole document twice per opening. The default stays `auto`; an app that cares sets `engine="native"` (Kestrel 1.1.1 does).
+- **Sheet focus, documented as measured.** Tab never reaches the page behind. Past the last control it leaves the document for the browser's own controls and the next Tab comes back to the first control; Shift+Tab wraps. Home Assistant's own dialog also lets Tab out (checked on the real Home Assistant 2026.9).
+- **Perf tools judge at the host's normal load.** `PERF_MAX_LOAD` (default 64; `8` brings back "a truly quiet host only") replaces waiting for a quiet window that never comes; a cell is `PROVISIONAL` only at or above it, and the load is printed with every cell. README, `docs/perf.md`, `docs/scenario-panel.md` and `scripts/lu-load` no longer ask for a quiet host.
+
 ## 0.1.0 - 2026-10-01
 
 First release: the shared Lucent-for-Home-Assistant toolkit, proven by Kestrel first.

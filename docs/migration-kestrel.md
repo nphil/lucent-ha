@@ -12,7 +12,7 @@ panels because they come from one shared kit. On the Echo Show an opt-in wall mo
 
 ## Set-up (do this first, nothing changes visibly)
 
-1. `package.json`: `"lucent-ha": "github:nphil/lucent-ha#v0.1.0"` (Lit stays a dependency; it is the toolkit's peer). esbuild resolves `dist/` (plain modules + `.d.ts`), no `allowImportingTsExtensions` needed.
+1. `package.json`: `"lucent-ha": "github:nphil/lucent-ha#v0.1.1"` (Lit stays a dependency; it is the toolkit's peer). esbuild resolves `dist/` (plain modules + `.d.ts`), no `allowImportingTsExtensions` needed.
 2. `src/main.ts`: replace the side-effect imports of `ui/*` with ONE call that lists only what Kestrel uses, so the bundle stays small and under the 80 KiB gzip gate in `build.mjs`:
    ```ts
    import { defineElements, LuAppShell, LuAudioList, LuAudioPlayer, LuButton, LuChip, LuGrid, LuImage, LuMediaRail, LuRoot, LuRow, LuSection, LuSegmented, LuSheet, LuState, LuViewStack } from "lucent-ha";

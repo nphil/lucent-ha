@@ -140,3 +140,42 @@ export function scrolledTo(scroll: KeyScroll, view: { top: number; height: numbe
   const distance = scroll.unit === "line" ? 40 : scroll.unit === "page" ? Math.round(view.height * 0.875) : Infinity;
   return Math.min(max, Math.max(0, view.top + scroll.direction * distance));
 }
+
+/** How the theme's two dialog filters (`--lu-scrim-blur` and `--lu-sheet-blur`: Home Assistant's `--ha-dialog-scrim-backdrop-filter`
+ * and `--ha-dialog-surface-backdrop-filter`) are drawn. A `backdrop-filter` makes the browser read back and filter everything behind
+ * the element again in every frame in which anything inside it changes, and a compositor without a GPU (the headless test browser,
+ * a weak device) does that on the CPU: with Home Assistant's `brightness(68%)` over the whole screen and a glass theme's `blur(8px)`
+ * over the whole panel, one press on the close button cost 10 to 50 ms more. Where the same picture can be had without a filter,
+ * the sheet draws it without one. */
+export interface DialogLook {
+  /** The scrim's filter is just `brightness(x)` with x at most 1 (Home Assistant's own is `brightness(68%)`): a black layer of opacity
+   * 1 - x behind the scrim darkens the page instead, the same picture. `null`: no scrim filter, or another one, which stays. */
+  dim: number | null;
+  /** The panel blurs its backdrop while the scrim has a filter of its own. In Chromium an element with a backdrop filter is the root
+   * of the backdrop of everything inside it, so that blur never sees the page: its backdrop is the scrim's flat colour, and all it
+   * paints is one more layer of that colour under the panel. The panel paints that layer itself and does not blur. (Without a scrim
+   * filter the blur does see the page and shows, so it stays; and in a browser where that rule was not checked, Safari and Firefox,
+   * the blur stays too: it may well show the page there.) */
+  flatFrost: boolean;
+}
+
+/** The browsers where "an element with a backdrop filter is the root of the backdrop of what is inside it" was checked, pixel by pixel:
+ * Chromium's (Chrome, headless Chrome, Edge, Android's WebView and Silk, Samsung Internet), whose user agents all carry
+ * `Chrome/<version>` (`HeadlessChrome/<version>` too). Safari, Firefox and every browser on iOS (`CriOS`, `FxiOS`) do not. */
+export const rootsItsBackdrop = (userAgent: string): boolean => /Chrome\/\d/.test(userAgent);
+
+const BRIGHTNESS = /^brightness\(\s*(\d*\.?\d+)\s*(%?)\s*\)$/i;
+
+/** `none`, or nothing at all (a token that is not set), is no filter. */
+const isFilter = (text: string): boolean => !/^(none)?$/i.test(text.trim());
+
+/** `backdropRoot`: see `rootsItsBackdrop`. */
+export function dialogLook(scrimFilter: string, surfaceFilter: string, backdropRoot: boolean): DialogLook {
+  const scrim = scrimFilter.trim();
+  const match = BRIGHTNESS.exec(scrim);
+  const level = match ? Number(match[1]) / (match[2] ? 100 : 1) : Number.NaN;
+  return {
+    dim: level >= 0 && level <= 1 ? Math.round((1 - level) * 1e4) / 1e4 : null,
+    flatFrost: backdropRoot && isFilter(scrim) && isFilter(surfaceFilter),
+  };
+}

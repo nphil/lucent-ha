@@ -100,6 +100,7 @@ export declare class LuSheet extends LuElement {
     private _liftedAutofocus;
     private _scroller;
     private _lockedTop;
+    private _themeWatch;
     constructor();
     connectedCallback(): void;
     disconnectedCallback(): void;
@@ -115,6 +116,12 @@ export declare class LuSheet extends LuElement {
     private get _dialog();
     /** Puts the sheet on screen. */
     private _present;
+    /** Reads the theme's two dialog filters and has the sheet draw them the cheap way where that gives the same picture (see
+     * `dialogLook`). Read at every opening, and again while open when the theme changes (`_watchTheme`). */
+    private _setLook;
+    /** While open, looks at the filters again whenever the page's root element changes its `style` or `class`: Home Assistant applies
+     * a theme as custom properties on it, so a theme switched with the sheet on screen is followed, not only the next opening. */
+    private _watchTheme;
     private _liftAutofocus;
     private _restoreAutofocus;
     /** Starts the exit: toasts go to the page, a swipe in progress lets go, the exit motion plays. */

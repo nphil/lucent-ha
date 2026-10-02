@@ -97,5 +97,6 @@ the `stale` strip is meant for the top of content and moves the page when it app
 
 ## Not covered
 
-Hover styling (headless Chrome has no pointing device), a real on-screen keyboard, real sound output (the recordings are generated tones),
-a real Home Assistant, and any speed number: timing waits for a quiet host.
+Hover styling (headless Chrome has no pointing device), a real on-screen keyboard, real sound output (the recordings are generated tones) and
+a real Home Assistant. Speed is not judged by looking at this page: `dev/perf-check.mjs` ([perf.md](perf.md)) measures it, at the host's normal
+load, which is printed with every number.

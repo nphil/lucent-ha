@@ -9,7 +9,7 @@ import { pushLayer } from "../ha/layers.js";
 import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.js";
 import { LAYOUT, MOTION, SWIPE } from "../tokens/constants.js";
 import { ICON_CLOSE } from "./sheet-icons.js";
-import { SheetLifecycle, initialFocus, keyScroll, keyboardInset, scrolledTo } from "./sheet-model.js";
+import { SheetLifecycle, dialogLook, initialFocus, keyScroll, keyboardInset, rootsItsBackdrop, scrolledTo } from "./sheet-model.js";
 import { SwipeDismiss } from "./swipe.js";
 import { showToast } from "./toast-event.js";
 import { LuToast } from "./toast.js";
@@ -69,6 +69,7 @@ export class LuSheet extends LuElement {
         this._liftedAutofocus = [];
         this._scroller = null;
         this._lockedTop = 0;
+        this._themeWatch = null;
         /** A toast raised inside the open sheet shows in the sheet (see the class comment). */
         this._onToast = (event) => {
             if (this._lifecycle.phase !== "open")
@@ -319,6 +320,7 @@ export class LuSheet extends LuElement {
             throw new Error("lucent-ha: a sheet was opened before it was rendered.");
         dialog.removeAttribute("data-leaving");
         this._swipe.clear();
+        this._setLook(dialog);
         try {
             dialog.showModal();
         }
@@ -333,7 +335,37 @@ export class LuSheet extends LuElement {
         const target = initialFocus(touch, autofocus.length > 0) === "target" ? autofocus[0] : undefined;
         (target ?? dialog).focus({ preventScroll: true });
         this._trackViewport(true);
+        this._watchTheme(true);
         this._lockPage(true);
+    }
+    /** Reads the theme's two dialog filters and has the sheet draw them the cheap way where that gives the same picture (see
+     * `dialogLook`). Read at every opening, and again while open when the theme changes (`_watchTheme`). */
+    _setLook(dialog) {
+        const style = getComputedStyle(this);
+        const look = dialogLook(style.getPropertyValue("--lu-scrim-blur"), style.getPropertyValue("--lu-sheet-blur"), rootsItsBackdrop(navigator.userAgent));
+        dialog.toggleAttribute("data-dim", look.dim !== null);
+        if (look.dim === null)
+            dialog.style.removeProperty("--_dim");
+        else
+            dialog.style.setProperty("--_dim", String(look.dim));
+        dialog.toggleAttribute("data-flat-frost", look.flatFrost);
+    }
+    /** While open, looks at the filters again whenever the page's root element changes its `style` or `class`: Home Assistant applies
+     * a theme as custom properties on it, so a theme switched with the sheet on screen is followed, not only the next opening. */
+    _watchTheme(on) {
+        if (!on) {
+            this._themeWatch?.disconnect();
+            this._themeWatch = null;
+            return;
+        }
+        if (this._themeWatch)
+            return;
+        this._themeWatch = new MutationObserver(() => {
+            const dialog = this._dialog;
+            if (dialog?.open)
+                this._setLook(dialog);
+        });
+        this._themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
     }
     _liftAutofocus(elements) {
         this._liftedAutofocus = elements;
@@ -385,6 +417,7 @@ export class LuSheet extends LuElement {
         this._restoreAutofocus();
         this._lockPage(false);
         this._trackViewport(false);
+        this._watchTheme(false);
         this._haShown = false;
         this._haOpen = false;
         const dialog = this._dialog;
@@ -450,6 +483,7 @@ export class LuSheet extends LuElement {
     _renderNative() {
         return html `<dialog tabindex="-1" aria-modal="true" aria-labelledby=${ifDefined(this.heading ? "title" : undefined)}
       @cancel=${this._onCancel} @close=${this._onNativeClose} @wheel=${this._onWheel} @keydown=${this._onKeydown}>
+      <div class="dim" aria-hidden="true"></div>
       <div class="scrim" @pointerdown=${this._onScrimDown} @pointerup=${this._onScrimUp} @click=${this._onScrimClick}>
         <section class="panel${this._hasFooter ? " has-footer" : ""}">
           <div class="grab" data-sheet-grab>
@@ -521,6 +555,16 @@ LuSheet.styles = [
         box-shadow: var(--lu-highlight-rest), var(--lu-shadow-rest); animation: panel-in var(--lu-motion-layer) var(--lu-ease) both;
       }
 
+      /* The theme's dialog filters, drawn without a filter where that gives the same picture (see dialogLook in sheet-model.ts).
+         A scrim that only darkens (Home Assistant's brightness(68%)) is a black layer of its own, a sibling in front of the page and
+         behind the scrim, with the scrim's motion. A panel blur that only ever sees the scrim is the scrim's colour painted
+         under the panel's own. Both avoid a backdrop filter that the compositor redoes over the whole screen or panel in every
+         frame that changes anything inside the sheet. */
+      .dim { display: none; position: absolute; inset: 0; pointer-events: none; background: rgb(0 0 0 / var(--_dim, 0)); animation: scrim-in var(--lu-motion-layer) var(--lu-ease) both; }
+      dialog[data-dim] .dim { display: block; }
+      dialog[data-dim] .scrim { backdrop-filter: none; }
+      dialog[data-flat-frost] .panel { background: linear-gradient(var(--lu-sheet), var(--lu-sheet)), var(--lu-scrim); backdrop-filter: none; }
+
       .grab { flex: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
       .handle { display: none; place-items: center; height: var(--lu-space-7); cursor: grab; }
       .handle::after { content: ""; width: var(--lu-space-8); height: var(--lu-space-1); border-radius: var(--lu-radius-pill); background: var(--lu-edge-raised); }
@@ -558,10 +602,10 @@ LuSheet.styles = [
       @keyframes panel-in { from { opacity: 0; transform: translate(var(--_x), var(--_y)); } }
       @keyframes panel-out { to { opacity: 0; transform: translate(var(--_x), var(--_y)); } }
       @keyframes panel-swipe-out { to { opacity: 0; transform: translate3d(0, 100%, 0); } }
-      dialog[data-leaving] .scrim { animation: scrim-out var(--lu-motion-exit) var(--lu-ease-exit) both; }
+      dialog[data-leaving] .scrim, dialog[data-leaving] .dim { animation: scrim-out var(--lu-motion-exit) var(--lu-ease-exit) both; }
       dialog[data-leaving] .panel { animation: panel-out var(--lu-motion-exit) var(--lu-ease-exit) both; }
       /* A swipe carries on downward from where the finger let go. */
-      dialog[data-leaving="swipe"] .scrim { animation-duration: ${unsafeCSS(`${SWIPE.dismissMs}ms`)}; }
+      dialog[data-leaving="swipe"] .scrim, dialog[data-leaving="swipe"] .dim { animation-duration: ${unsafeCSS(`${SWIPE.dismissMs}ms`)}; }
       dialog[data-leaving="swipe"] .panel { animation: panel-swipe-out ${unsafeCSS(`${SWIPE.dismissMs}ms`)} var(--lu-ease-exit) both; }
       @media (prefers-reduced-motion: reduce) {
         dialog[data-leaving="swipe"] .panel { animation: panel-out var(--lu-motion-exit) var(--lu-ease-exit) both; }

@@ -82,4 +82,4 @@ Scenario hooks the tool relies on (do not rename): `window.__lu.demo` (`ready`, 
 
 ## Results
 
-The numbers of the last full run on a quiet host are in [perf/latest.md](perf/latest.md) (written by the tool; it does not exist until that run has been made).
+Nothing is committed here: each run writes `latest.json` and `latest.md` to `--out` (`docs/perf` or `dev/out/...`). The numbers behind a release are in `CHANGELOG.md` and the GitHub Release notes.

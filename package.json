@@ -1,6 +1,6 @@
 {
   "name": "lucent-ha",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lucent design-language toolkit for Home Assistant custom panels and cards: tokens, device profiles, app shell, view stack, sheets, grids, images, states and generic controls (Lit 3).",
   "type": "module",
   "license": "MIT",

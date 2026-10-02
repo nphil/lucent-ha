@@ -1,4 +1,4 @@
 #!/bin/sh
-# Prints the host's 1-minute load average (Unraid, 16 threads). Speed numbers are only valid when it is below 8
-# before AND after a run; record it next to every number.
+# Prints the host's 1-minute load average (Unraid, 16 threads). Speed numbers are judged at the host's NORMAL load (15-25, the limit is
+# PERF_MAX_LOAD, default 64): there is no quiet window to wait for. Record the load next to every number.
 ssh -o ConnectTimeout=5 unraid cat /proc/loadavg 2>/dev/null | cut -d' ' -f1 || echo unknown

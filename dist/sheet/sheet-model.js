@@ -95,3 +95,20 @@ export function scrolledTo(scroll, view) {
     const distance = scroll.unit === "line" ? 40 : scroll.unit === "page" ? Math.round(view.height * 0.875) : Infinity;
     return Math.min(max, Math.max(0, view.top + scroll.direction * distance));
 }
+/** The browsers where "an element with a backdrop filter is the root of the backdrop of what is inside it" was checked, pixel by pixel:
+ * Chromium's (Chrome, headless Chrome, Edge, Android's WebView and Silk, Samsung Internet), whose user agents all carry
+ * `Chrome/<version>` (`HeadlessChrome/<version>` too). Safari, Firefox and every browser on iOS (`CriOS`, `FxiOS`) do not. */
+export const rootsItsBackdrop = (userAgent) => /Chrome\/\d/.test(userAgent);
+const BRIGHTNESS = /^brightness\(\s*(\d*\.?\d+)\s*(%?)\s*\)$/i;
+/** `none`, or nothing at all (a token that is not set), is no filter. */
+const isFilter = (text) => !/^(none)?$/i.test(text.trim());
+/** `backdropRoot`: see `rootsItsBackdrop`. */
+export function dialogLook(scrimFilter, surfaceFilter, backdropRoot) {
+    const scrim = scrimFilter.trim();
+    const match = BRIGHTNESS.exec(scrim);
+    const level = match ? Number(match[1]) / (match[2] ? 100 : 1) : Number.NaN;
+    return {
+        dim: level >= 0 && level <= 1 ? Math.round((1 - level) * 1e4) / 1e4 : null,
+        flatFrost: backdropRoot && isFilter(scrim) && isFilter(surfaceFilter),
+    };
+}
