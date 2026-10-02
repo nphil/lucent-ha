@@ -290,12 +290,16 @@ export class LuAppShell extends LuElement {
     :host([scroll="contained"]) { container-type: size; height: 100%; min-height: 0; margin: 0; --_vh: 100cqh; }
 
     .frame { display: flex; flex-direction: column; min-height: inherit; }
+    /* Until the panel has been measured its layout would be a guess. A panel inside an element that has not rendered yet has no width at first, and drawing the wrong layout for a frame would move everything when the right one arrives. */
+    :host(:not([data-lu-profile])) .frame { visibility: hidden; }
     :host([scroll="contained"]) .frame { height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; }
     .frame[data-layout="rail"] { display: grid; grid-template-columns: calc(var(--_rail-w) + var(--lu-safe-left)) minmax(0, 1fr); grid-template-rows: auto 1fr; }
 
     /* One surface for all chrome: Home Assistant's header colours over an opaque canvas, so it stays readable over scrolling content in glass themes. */
     .chrome, .rail, .dock-nav { color: var(--lu-bar-ink); background: linear-gradient(var(--lu-bar-tint), var(--lu-bar-tint)), var(--lu-canvas); }
     .chrome { position: sticky; top: 0; z-index: var(--lu-z-chrome); flex: none; border-bottom: var(--lu-bar-edge); }
+    /* Controls in the bars are always on screen, so focusing one must never scroll the page to "clear" the bars (the default focus clearance is for content). */
+    .chrome, .dock { --lu-top-chrome: 0px; --lu-bottom-bar: 0px; --lu-focus-scroll-clearance: 0px; }
     .frame[data-layout="rail"] .chrome { grid-column: 1 / -1; }
 
     .bar { display: flex; align-items: center; gap: var(--lu-space-2); height: calc(var(--lu-app-bar) + var(--lu-safe-top)); padding: var(--lu-safe-top) calc(var(--lu-space-2) + var(--lu-safe-right)) 0 calc(var(--lu-space-2) + var(--lu-safe-left)); }
@@ -323,6 +327,8 @@ export class LuAppShell extends LuElement {
     .dock { position: sticky; bottom: 0; z-index: var(--lu-z-chrome); flex: none; }
     .frame:not([data-layout="bottom"]) .dock { padding-bottom: var(--lu-safe-bottom); }
     .dock-nav { border-top: var(--lu-bar-edge); padding: 0 var(--lu-safe-right) var(--lu-safe-bottom) var(--lu-safe-left); }
+    /* The strip gets the bar's surface unless the app styles its own: text pinned over scrolling content must stay readable. */
+    ::slotted([slot="bottom"]) { color: var(--lu-bar-ink); background: linear-gradient(var(--lu-bar-tint), var(--lu-bar-tint)), var(--lu-canvas); border-top: var(--lu-bar-edge); }
   `];
 }
 

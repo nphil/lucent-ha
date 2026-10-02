@@ -4,7 +4,7 @@ import { LuElement } from "../core/element.ts";
 import { fireHaptic } from "../core/haptics.ts";
 import { renderIcon } from "../core/icon.ts";
 import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.ts";
-import { DANGER_PILL_CSS, LuButton } from "./button.ts";
+import { PILL_SURFACE_CSS, LuButton } from "./button.ts";
 import { ICON_ALERT, ICON_CHECK, ICON_INFO } from "./controls-icons.ts";
 import { HOLD_DEFAULTS, HOLD_IDLE, holdDrainRemainingMs, holdProgress, holdRelease, holdPress, holdRemainingMs, type HoldState } from "./hold-model.ts";
 
@@ -271,14 +271,14 @@ export class LuHoldButton extends LuElement {
   static styles = [
     BASE_CSS,
     CONTROLS_CSS,
-    DANGER_PILL_CSS,
+    PILL_SURFACE_CSS,
     css`
       :host { display: block; min-width: 0; }
       :host([hidden]) { display: none; }
       .wrap { display: grid; gap: var(--lu-space-2); }
       .consequence { display: flex; align-items: flex-start; gap: var(--lu-space-2); margin: 0; color: var(--lu-ink); font: 400 var(--lu-type-label)/1.4 var(--lu-font); }
-      .consequence .icon { --lu-icon: 18px; margin-top: 1px; color: var(--lu-ink-2); }
-      :host([kind="danger"]) .consequence .icon { color: var(--lu-danger); }
+      .consequence .icon { --lu-icon: 18px; margin-top: 1px; color: var(--lu-ink); }
+      :host([kind="danger"]) .consequence .icon { color: color-mix(in srgb, var(--lu-danger) 30%, var(--lu-ink)); }
       .hold { position: relative; width: 100%; overflow: hidden; padding: 0; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; font-family: var(--lu-font); }
       .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: var(--lu-accent-soft); pointer-events: none; }
       .danger .fill { background: color-mix(in srgb, var(--lu-danger) 26%, transparent); }

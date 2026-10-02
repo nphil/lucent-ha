@@ -118,7 +118,7 @@ await withTab({ dpr, cpu, reducedMotion: options["reduced-motion"] === true, tim
     const spec = specFor(size);
     await applyDevice(session, spec, { dpr, cpu });
     for (const theme of themes) {
-      const before = { errors: seen.errors.length, warnings: seen.warnings.length };
+      const before = { errors: seen.errors.length, warnings: seen.warnings.length, notes: seen.notes.length };
       const url = typeof options.url === "string" ? harnessUrl({ theme: theme === "flat-light" ? undefined : theme }, options.url) : harnessUrl(params(theme, spec));
       await open(page, url);
       if (options["open-drawer"]) await page.evaluate(async () => { window.__lu.openDrawer(true); await window.__lu.settle(); });
@@ -137,9 +137,11 @@ await withTab({ dpr, cpu, reducedMotion: options["reduced-motion"] === true, tim
         else await page.screenshot({ path: file, fullPage: options["full-page"] === true });
         console.log(`saved ${file}  [${label}]`);
       }
-      const pageErrors = await page.evaluate(() => window.__lu?.errors ?? []);
-      const errors = [...new Set([...seen.errors.slice(before.errors), ...pageErrors])];
+      const inPage = await page.evaluate(() => ({ errors: window.__lu?.errors ?? [], notes: window.__lu?.notes ?? [] }));
+      const errors = [...new Set([...seen.errors.slice(before.errors), ...inPage.errors])];
       const warnings = seen.warnings.slice(before.warnings);
+      const notes = new Set([...seen.notes.slice(before.notes), ...inPage.notes]).size;
+      if (notes > 0) console.log(`  note: ${notes} "ResizeObserver loop" message(s): the layout settled over two frames (not an error)`);
       console.log(errors.length ? `  console errors (${errors.length}): ${JSON.stringify(errors.slice(0, 5))}` : `  no console errors${warnings.length ? `, ${warnings.length} warning(s): ${JSON.stringify(warnings.slice(0, 3))}` : ""}`);
       if (errors.length) failed = true;
     }

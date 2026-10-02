@@ -73,6 +73,8 @@ export class LuHarness extends EventTarget {
   readonly mock: MockHa;
   /** Uncaught errors, unhandled rejections and `console.error` calls, oldest first. */
   readonly errors: string[] = [];
+  /** Browser messages that are not errors, e.g. "ResizeObserver loop completed with undelivered notifications" (a layout settling over two frames). */
+  readonly notes: string[] = [];
   /** Build-time skips plus load/registration failures, shown as a banner on the page. */
   problems: BuildProblem[] = [];
   /** Every specimen that loaded. */

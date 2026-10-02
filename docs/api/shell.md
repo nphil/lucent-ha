@@ -25,6 +25,11 @@ The layout follows the panel's own width (not the window's, because Home Assista
 
 Fewer than two destinations: no navigation is drawn (a single tab is not navigation). The bottom bar and the rail never appear together.
 Every destination shows its label, on every size. Switching layout moves nothing while you are reading: the chrome has its final size on the first frame.
+A shell that is created before it has any width (inside an element that has not rendered yet) draws nothing until it has been measured, so a wrong layout never flashes. The chrome that does not scroll away stays well under 20 % of the screen height (bar and edge line: 13 % of a 390 px tall phone held sideways, 10 % of a 480 px tall wall display).
+
+How it looks: the bar, the pills row, the rail and the bottom bar share one surface (Home Assistant's header colours over an opaque base, so it stays
+readable over scrolling content in glass themes). The current destination has a wash, a short accent bar and `aria-current="page"`; the bar is a
+shape, so "you are here" also reads without colour. A press shows a wash at once (nothing moves); keyboard focus is Lucent's landing bar.
 
 ### Properties
 
@@ -37,7 +42,7 @@ Every destination shows its label, on every size. Switching layout moves nothing
 | `current` | `current` | `""` | Id of the current destination. An id that matches none (a detail page) marks nothing as current. |
 | `leading` | `leading` | `"auto"` | The button at the start of the bar. `auto`: Home Assistant's menu button when its sidebar is a drawer (narrow screen, or the user's "always hidden" setting), nothing otherwise. `menu`: always the menu button. `back`: a back arrow (sub-pages; it also answers Escape). `none`. |
 | `wall` | `wall` | `false` | Wall mode, see below. |
-| `wallKey` | `wall-key` | `""` | Set it in the markup and this device remembers wall mode under that key (read once when the shell connects; an explicit `wall` wins). |
+| `wallKey` | `wall-key` | `""` | Set it in the markup and this device remembers wall mode under that key (read once when the shell connects; an explicit `wall` wins). Kept in `localStorage` as `<prefix>.lu.<key>`. |
 | `contentMax` | `content-max` | `"grid"` | How wide content may grow: `grid` 1600 px, `text` 1100 px, `none`. Centred. |
 | `scrollMode` | `scroll` | `"document"` | `document`: the page scrolls (the normal case). `contained`: the shell is `height: 100%` of its parent and scrolls inside itself (specimens, previews). In code the property is `scrollMode` because every element already has a method called `scroll`. |
 | `navMode` | `nav-mode` | `"auto"` | `auto` follows the screen. `tabs`, `pills`, `bottom` or `rail` force one layout (design review, previews). |
@@ -54,7 +59,7 @@ Every destination shows its label, on every size. Switching layout moves nothing
 |---|---|
 | `actions` | Buttons at the end of the bar. Use 48 px targets; on a phone two or three fit. |
 | (default) | The panel's views. |
-| `bottom` | A strip pinned above the bottom bar (a "now playing" bar). It stays at the bottom in every layout. |
+| `bottom` | A strip pinned above the bottom bar (a "now playing" bar). It stays at the bottom in every layout and gets the bar's opaque surface unless you style your own. |
 
 ### Events
 
@@ -72,23 +77,23 @@ Set on the shell itself, so everything inside inherits them:
 |---|---|
 | `--lu-top-chrome` | Height of the sticky top block: the bar, its edge line and, in pills layout, the pills row. Use `top: var(--lu-top-chrome)` for headers that stick under it. |
 | `--lu-bottom-bar` | Height of everything pinned to the bottom: the `bottom` strip, the bottom bar and the home-indicator padding. `0px` when nothing is pinned. Toasts and focus scrolling use it. |
-| `--lu-rail-w` | Width of the left rail, `0px` when there is none. |
+| `--lu-rail-w` | Width of the left rail (including a landscape notch), `0px` when there is none. |
 | `data-lu-profile` | `phone`, `tablet`, `desktop` or `smart`. The tokens switch type, targets and margins on it. |
 | `data-lu-short` | The screen is 500 px or less tall. |
 | `data-lu-touch` | The main input is a finger. |
 | `data-lu-nav` | The layout in force: `tabs`, `pills`, `bottom` or `rail`. |
 
-The sizes are measured with a ResizeObserver, so they are the real ones (rounded up to whole pixels).
+The sizes are measured with a ResizeObserver, so they are the real ones (rounded up to whole pixels). What the shell changes itself (a render, a layout
+switch) is published at once; a later change the observer reports (the strip grew) is published one frame later.
 
 ### Scrolling, safe areas and the bars
 
 - Default (`scroll="document"`): the bars are `position: sticky` in the page. The bottom bar is the last thing in the page, so it can never cover the end of
-  the content. The shell expects Home Assistant's usual padding around a panel (the safe-area insets: do not register the panel with `handle_safe_area`).
-  It cancels that padding so the bars reach the screen edges, and pads their contents by the safe areas itself (a notch, the home indicator).
+  the content, and focusing a control in a bar never scrolls the page. The shell expects Home Assistant's usual padding around a panel (the safe-area
+  insets: do not register the panel with `handle_safe_area`). It cancels that padding so the bars reach the screen edges, and pads their contents by the
+  safe areas itself (a notch at the top or the sides, the home indicator at the bottom).
 - `scroll="contained"`: the shell has its own scroll area and exposes `luScroller` (see `src/core/scroller.ts`) so a view stack inside it saves and
   restores scroll there. The parent needs a height. In document mode `luScroller` is `undefined` and the page scrolls.
-- The bar is Home Assistant's own header colours over an opaque base, so it stays readable over scrolling content in glass themes. The selected
-  destination has a wash and a short accent bar (a shape, so it reads without colour), and `aria-current="page"`.
 
 ### Wall mode
 
@@ -105,6 +110,12 @@ key cap while hovered or keyboard-focused. Listeners exist only while the shell 
 ### Toasts
 
 The shell hosts a toast (`showToast(element, { message })` from anywhere inside it). The toast sits above the bottom bar and the safe area.
+
+### Limits
+
+- The bottom bar is for 3 to 5 destinations. More are squeezed and their labels cut short.
+- When the destinations do not fit a very short screen, the rail scrolls inside itself.
+- A notch inset is applied to the physical left and right edge; it is not mirrored for right-to-left pages.
 
 ## `nav` (`LuNav`)
 

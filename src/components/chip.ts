@@ -84,12 +84,12 @@ export class LuChip extends LuElement {
       .count { flex: none; }
       .evidence { padding: 0 var(--lu-space-2); }
       .evidence:has(.count) { padding-right: var(--lu-space-3); }
-      /* Meaning comes from the icon and the text; the colour only supports it (mixed toward the ink so the icon keeps 3:1). */
-      .positive .icon { color: color-mix(in srgb, var(--lu-positive) 60%, var(--lu-ink)); }
-      .warning .icon { color: color-mix(in srgb, var(--lu-warning) 60%, var(--lu-ink)); }
-      .danger .icon { color: color-mix(in srgb, var(--lu-danger) 60%, var(--lu-ink)); }
-      .info .icon { color: color-mix(in srgb, var(--lu-info) 60%, var(--lu-ink)); }
-      .live .icon { --lu-icon: 10px; margin: 0 var(--lu-space-1); color: color-mix(in srgb, var(--lu-live) 60%, var(--lu-ink)); }
+      /* Meaning comes from the icon and the text; the colour only supports it (mixed toward the ink so the icon keeps 3:1 on glass too). */
+      .positive .icon { color: color-mix(in srgb, var(--lu-positive) 45%, var(--lu-ink)); }
+      .warning .icon { color: color-mix(in srgb, var(--lu-warning) 45%, var(--lu-ink)); }
+      .danger .icon { color: color-mix(in srgb, var(--lu-danger) 45%, var(--lu-ink)); }
+      .info .icon { color: color-mix(in srgb, var(--lu-info) 45%, var(--lu-ink)); }
+      .live .icon { --lu-icon: 10px; margin: 0 var(--lu-space-1); color: color-mix(in srgb, var(--lu-live) 45%, var(--lu-ink)); }
       .positive { border-color: color-mix(in srgb, var(--lu-positive) 40%, var(--lu-edge)); }
       .warning { border-color: color-mix(in srgb, var(--lu-warning) 40%, var(--lu-edge)); }
       .danger { border-color: color-mix(in srgb, var(--lu-danger) 40%, var(--lu-edge)); }
@@ -101,7 +101,7 @@ export class LuChip extends LuElement {
       button.chip .icon { color: var(--lu-accent); }
       .lines { display: grid; min-width: 0; }
       .lead { display: inline-flex; align-items: baseline; gap: var(--lu-space-1); min-width: 0; font-weight: 600; }
-      .detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lu-ink-2); font-size: var(--lu-type-caption); }
+      .detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lu-ink); font-size: var(--lu-type-caption); font-weight: 400; }
       ::slotted([slot="detail"]) { display: block; overflow: hidden; text-overflow: ellipsis; }
       button.chip[aria-pressed="true"] { background: var(--lu-material-selected-wash); border-color: var(--lu-edge-raised); box-shadow: var(--lu-highlight-raised); }
       button.chip[aria-pressed="true"] .icon { color: var(--lu-ink); }

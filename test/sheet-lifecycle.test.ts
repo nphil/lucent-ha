@@ -3,18 +3,26 @@ import { describe, it } from "node:test";
 import { SheetLifecycle, initialFocus, keyboardInset } from "../src/sheet/sheet-model.ts";
 import type { SheetCloseReason, SheetLayer } from "../src/sheet/sheet-model.ts";
 
-/** A history layer stack like the real one: `popFromBrowser` is the system Back button. */
+/** A layer stack that behaves like the real manager (`src/ha/layers.ts`): `handle.close()` closes the layer and every layer
+ * above it and runs their `onClose` callbacks right away, top first (inside `close()`, before it returns); `popFromBrowser`
+ * is the system Back button. */
 function fakeHistory() {
   const log: string[] = [];
   const layers: Array<SheetLayer & { onClose: (reason: string) => void; isOpen: boolean }> = [];
+  const closeFrom = (start: number, reason: string): void => {
+    const closing = layers.slice(start).filter((layer) => layer.isOpen);
+    for (const layer of closing) layer.isOpen = false;
+    for (const layer of closing.reverse()) layer.onClose(reason);
+  };
   const push = (id: string, onClose: (reason: string) => void): SheetLayer => {
     const layer = {
       isOpen: true,
-      get open() { return this.isOpen; },
+      get open() { return layer.isOpen; },
       onClose,
       close(reason?: string) {
+        if (!layer.isOpen) return;
         log.push(`layer.close(${reason ?? ""})`);
-        this.isOpen = false;
+        closeFrom(layers.indexOf(layer), reason ?? "api");
       },
     };
     log.push(`push(${id})`);
@@ -24,10 +32,8 @@ function fakeHistory() {
   /** The system Back button: pops the topmost layer that is still open. */
   const popFromBrowser = (reason = "back"): void => {
     for (let index = layers.length - 1; index >= 0; index--) {
-      const layer = layers[index];
-      if (!layer?.isOpen) continue;
-      layer.isOpen = false;
-      layer.onClose(reason);
+      if (!layers[index]?.isOpen) continue;
+      closeFrom(index, reason);
       return;
     }
   };
@@ -230,6 +236,48 @@ describe("SheetLifecycle: the element goes away", () => {
     assert.deepEqual(log, ["layer.close(api)"]);
     assert.equal(history.layers[0]?.isOpen, false);
     assert.equal(lifecycle.phase, "closed");
+  });
+
+  it("is silent even though the layer manager runs onClose inside close(): no exit, no lu-close, no reopen", () => {
+    const { lifecycle, log } = sheet({ wantsOpen: () => true });
+    lifecycle.open(HISTORY);
+    log.length = 0;
+    lifecycle.dispose();
+    assert.deepEqual(log, ["layer.close(api)"]);
+  });
+
+  it("a sheet that never had a history entry has nothing to give back", () => {
+    const { lifecycle, log } = sheet();
+    lifecycle.open(NO_HISTORY);
+    log.length = 0;
+    lifecycle.dispose();
+    assert.deepEqual(log, []);
+    assert.equal(lifecycle.phase, "closed");
+  });
+});
+
+describe("SheetLifecycle: two sheets, the lower one closes first", () => {
+  it("closes the sheet above it too, reporting api, and the lower one keeps its own reason", () => {
+    const stack = fakeHistory();
+    const events: string[] = [];
+    const make = (name: string) => {
+      const lifecycle: SheetLifecycle = new SheetLifecycle({
+        show: () => {},
+        exit: (reason) => { events.push(`${name} exit ${reason}`); lifecycle.exited(); },
+        closed: (reason) => events.push(`${name} closed ${reason}`),
+        setOpen: () => {},
+        wantsOpen: () => false,
+      }, stack.push);
+      return lifecycle;
+    };
+    const lower = make("lower");
+    const upper = make("upper");
+    lower.open(HISTORY);
+    upper.open(HISTORY);
+    lower.close("button");
+    assert.deepEqual(events, ["upper exit api", "upper closed api", "lower exit button", "lower closed button"]);
+    assert.equal(lower.phase, "closed");
+    assert.equal(upper.phase, "closed");
   });
 });
 

@@ -15,8 +15,8 @@ const DESTINATIONS: LuDestination[] = [
   { id: "settings", label: "Settings", icon: "mdi:cog" },
 ];
 
-/** The height every full-size shell specimen gets: as tall as the screen, so the layout is judged at its real proportions. */
-const FRAME = "height:min(100dvh,900px);border:1px solid var(--lu-edge)";
+/** The height the main shell specimen gets: as tall as the screen minus the page's own padding, so the layout is judged at its real proportions and fits one screenshot. */
+const FRAME = "height:min(calc(100dvh - 28px),900px);border:1px solid var(--lu-edge)";
 /** The fixed-height cells of the forced-layout specimens. */
 const BOX = "height:440px;border:1px solid var(--lu-edge)";
 
@@ -120,7 +120,7 @@ export const specimens: Specimen[] = [
     size: "full",
     render: (ctx) => html`<spec-lu-app-shell data-spec="shell-wall" style=${BOX} scroll="contained" heading="Wall display" current="live" .hass=${ctx.hass} ?narrow=${ctx.narrow} .destinations=${DESTINATIONS} @lu-navigate=${follow}>
       <div style="display:grid;gap:var(--lu-space-3);justify-items:start">
-        <p style="margin:0;color:var(--lu-ink-2)">Wall mode is off. In wall mode the menu button is always in the bar, because Home Assistant hides its own.</p>
+        <p style="margin:0;color:var(--lu-ink-2)">Press the button to switch wall mode on or off. In wall mode the menu button is always in the bar, because Home Assistant hides its own.</p>
         <spec-lu-button data-wall-toggle kind="secondary" label="Turn wall mode on" @click=${(event: Event) => {
           const shellElement = (event.currentTarget as HTMLElement).closest("[data-spec=shell-wall]") as ShellElement;
           shellElement.wall = !shellElement.wall;

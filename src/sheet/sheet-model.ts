@@ -83,12 +83,13 @@ export class SheetLifecycle {
     if (this._effects.wantsOpen()) this.open(this._wanted);
   }
 
-  /** The element is leaving the page: give the history entry back without any motion or event. */
+  /** The element is leaving the page: give the history entry back without any motion or event. The sheet counts as closed
+   * before the entry is given back, because the layer manager runs `onClose` inside `close()`. */
   dispose(): void {
     const layer = this._layer;
     this._layer = null;
-    if (layer?.open) layer.close("api");
     this.phase = "closed";
+    if (layer?.open) layer.close("api");
   }
 
   private _layerClosed(reason: string): void {
@@ -111,4 +112,31 @@ export function keyboardInset(viewport: { innerHeight: number; height: number; o
  * on its own: that would raise the on-screen keyboard over half the sheet (idea from Music Assistant's `dialog_focus.ts`). */
 export function initialFocus(touch: boolean, hasAutofocusTarget: boolean): "container" | "target" {
   return !touch && hasAutofocusTarget ? "target" : "container";
+}
+
+/** What a keyboard scroll key asks for: which way, and how far (a line, a page or all the way). `null` for any other key. */
+export interface KeyScroll {
+  direction: -1 | 1;
+  unit: "line" | "page" | "edge";
+}
+
+export function keyScroll(key: string, shift: boolean): KeyScroll | null {
+  switch (key) {
+    case "ArrowDown": return { direction: 1, unit: "line" };
+    case "ArrowUp": return { direction: -1, unit: "line" };
+    case "PageDown": return { direction: 1, unit: "page" };
+    case "PageUp": return { direction: -1, unit: "page" };
+    case " ": return { direction: shift ? -1 : 1, unit: "page" };
+    case "End": return { direction: 1, unit: "edge" };
+    case "Home": return { direction: -1, unit: "edge" };
+    default: return null;
+  }
+}
+
+/** Where a scroller ends up after such a key: a line is 40 px, a page 87.5 % of its height (what browsers do), an edge is the
+ * top or the bottom; never outside the content. */
+export function scrolledTo(scroll: KeyScroll, view: { top: number; height: number; scrollHeight: number }): number {
+  const max = Math.max(0, view.scrollHeight - view.height);
+  const distance = scroll.unit === "line" ? 40 : scroll.unit === "page" ? Math.round(view.height * 0.875) : Infinity;
+  return Math.min(max, Math.max(0, view.top + scroll.direction * distance));
 }

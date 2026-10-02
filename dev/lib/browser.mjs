@@ -33,14 +33,16 @@ export async function applyDevice(session, device, { dpr = 1, cpu = 1 } = {}) {
   return spec;
 }
 
-/** Collects what the page complains about: console errors and warnings, uncaught errors, failed requests. */
+/** Collects what the page complains about: console errors and warnings, uncaught errors, failed requests. A "ResizeObserver loop" message is
+ * a layout settling over two frames, not a failure: it is kept apart in `notes`. */
 export function watchConsole(page) {
-  const seen = { errors: [], warnings: [] };
+  const seen = { errors: [], warnings: [], notes: [] };
+  const error = (text) => (text.includes("ResizeObserver loop") ? seen.notes : seen.errors).push(text.slice(0, 300));
   page.on("console", (message) => {
-    if (message.type() === "error") seen.errors.push(message.text().slice(0, 300));
+    if (message.type() === "error") error(message.text());
     else if (message.type() === "warning") seen.warnings.push(message.text().slice(0, 300));
   });
-  page.on("pageerror", (error) => seen.errors.push(`uncaught: ${String(error).slice(0, 300)}`));
+  page.on("pageerror", (failure) => error(`uncaught: ${String(failure)}`));
   page.on("requestfailed", (request) => seen.errors.push(`request failed: ${request.url().slice(0, 160)} (${request.failure()?.errorText})`));
   return seen;
 }

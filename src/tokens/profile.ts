@@ -39,6 +39,7 @@ export class PanelProfile implements ReactiveController {
   private readonly _onChange?: (state: ProfileState) => void;
   private _observer?: ResizeObserver;
   private _resolved = false;
+  private _frame = 0;
 
   constructor(host: ReactiveControllerHost & HTMLElement, options: PanelProfileOptions = {}) {
     this._host = host;
@@ -49,7 +50,10 @@ export class PanelProfile implements ReactiveController {
 
   hostConnected(): void {
     if (typeof ResizeObserver !== "undefined") {
-      this._observer = new ResizeObserver((entries) => this._apply(entries[0]?.contentRect.width ?? this._host.clientWidth));
+      // Applying the profile inside the observer callback changes tokens and layout, so the observed host can change size in
+      // the same delivery and the browser logs "ResizeObserver loop completed with undelivered notifications". One coalesced
+      // animation frame avoids that; the first measurement (below) and window resizes stay synchronous.
+      this._observer = new ResizeObserver(() => this._schedule());
       this._observer.observe(this._host);
     }
     if (!this._card) {
@@ -62,6 +66,8 @@ export class PanelProfile implements ReactiveController {
   hostDisconnected(): void {
     this._observer?.disconnect();
     this._observer = undefined;
+    if (this._frame) window.cancelAnimationFrame(this._frame);
+    this._frame = 0;
     window.removeEventListener("resize", this._refresh);
     window.removeEventListener("orientationchange", this._refresh);
   }
@@ -72,6 +78,14 @@ export class PanelProfile implements ReactiveController {
   }
 
   private _refresh = (): void => { this._apply(this._host.clientWidth); };
+
+  private _schedule(): void {
+    if (this._frame) return;
+    this._frame = window.requestAnimationFrame(() => {
+      this._frame = 0;
+      this._apply(this._host.clientWidth);
+    });
+  }
 
   private _apply(measured: number): void {
     const width = Math.round(measured);

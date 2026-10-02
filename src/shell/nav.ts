@@ -125,7 +125,7 @@ export class LuNav extends LuElement {
     nav { min-width: 0; height: 100%; }
     ul { display: flex; height: 100%; margin: 0; padding: 0; list-style: none; gap: var(--lu-space-1); }
     li { display: flex; min-width: 0; }
-    .item { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--lu-space-2); min-width: var(--lu-target); min-height: var(--lu-target); max-width: 100%; margin: 0; padding: 0 var(--lu-space-4); border: 0; border-radius: var(--lu-radius-control); background-color: transparent; color: color-mix(in srgb, var(--lu-bar-ink) 72%, transparent); font: 600 var(--lu-type-label)/1.2 var(--lu-font); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color var(--lu-motion-label) var(--lu-ease), color var(--lu-motion-label) var(--lu-ease); }
+    .item { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--lu-space-2); min-width: var(--lu-target); min-height: var(--lu-target); max-width: 100%; margin: 0; padding: 0 var(--lu-space-4); scroll-margin: 0; border: 0; border-radius: var(--lu-radius-control); background-color: transparent; color: color-mix(in srgb, var(--lu-bar-ink) 72%, transparent); font: 600 var(--lu-type-label)/1.2 var(--lu-font); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color var(--lu-motion-label) var(--lu-ease), color var(--lu-motion-label) var(--lu-ease); }
     .item:is(:active, [data-pressed]) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); transition: none; }
     .item[aria-current] { color: var(--lu-bar-ink); background-color: var(--lu-material-selected-wash); }
     @media (hover: hover) and (pointer: fine) {
@@ -142,7 +142,7 @@ export class LuNav extends LuElement {
     /* Shortcut key cap: only where a mouse or trackpad exists, only while the item is hovered or has keyboard focus. */
     .hint { display: none; }
     @media (hover: hover) and (pointer: fine) {
-      .hint { display: block; position: absolute; top: 2px; inset-inline-end: 4px; min-width: calc(var(--lu-type-caption) * 1.5); padding: 0 var(--lu-space-1); border: 1px solid var(--lu-edge); border-radius: 6px; background: var(--lu-glass-raised); color: var(--lu-bar-ink); font: 600 var(--lu-type-caption)/1.4 var(--lu-font); text-align: center; opacity: 0; pointer-events: none; transition: opacity var(--lu-motion-label) var(--lu-ease); }
+      .hint { display: block; position: absolute; top: 2px; inset-inline-end: 3px; min-width: calc(var(--lu-type-caption) * 1.4); padding: 0 3px; border: 1px solid var(--lu-edge); border-radius: 6px; background: var(--lu-glass-raised); color: var(--lu-bar-ink); font: 600 var(--lu-type-caption)/1.2 var(--lu-font); text-align: center; opacity: 0; pointer-events: none; transition: opacity var(--lu-motion-label) var(--lu-ease); }
       .item:is(:hover, :focus-visible) .hint { opacity: 1; }
     }
 
@@ -155,8 +155,8 @@ export class LuNav extends LuElement {
     :host([mode="pills"]) .item::after { inset-inline: calc(50% - 10px); bottom: 5px; height: 3px; border-radius: 3px; }
 
     :host([mode="bottom"]) ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
-    :host([mode="bottom"]) li { display: block; padding: var(--lu-space-1) 2px; }
-    :host([mode="bottom"]) .item { flex-direction: column; gap: 2px; width: 100%; height: 100%; min-width: 0; padding: 2px var(--lu-space-1); font-size: var(--lu-type-caption); }
+    :host([mode="bottom"]) li { display: block; padding: var(--lu-space-1) 1px; }
+    :host([mode="bottom"]) .item { flex-direction: column; gap: 2px; width: 100%; height: 100%; min-width: 0; padding: 2px; font-size: var(--lu-type-caption); }
     :host([mode="bottom"]) .item::after { top: 0; inset-inline: calc(50% - 14px); height: 3px; border-radius: 0 0 3px 3px; }
     :host([mode="bottom"]) .label { max-width: 100%; }
 
@@ -166,9 +166,9 @@ export class LuNav extends LuElement {
     :host([mode="rail"]) .label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
     :host([mode="rail"]) .item::after { inset-inline-start: 0; top: calc(50% - 12px); width: 3px; height: 24px; border-radius: 0 3px 3px 0; }
     :host([mode="rail"]) .item:dir(rtl)::after { border-radius: 3px 0 0 3px; }
-    :host(:is([mode="bottom"], [mode="rail"])) .badge { position: absolute; top: 2px; inset-inline-start: calc(50% + var(--lu-space-1)); margin: 0; }
+    :host(:is([mode="bottom"], [mode="rail"])) .badge { position: absolute; top: 5px; inset-inline-start: calc(50% + var(--lu-space-2)); margin: 0; }
     @media (hover: hover) and (pointer: fine) {
-      :host(:is([mode="bottom"], [mode="rail"])) .hint { inset-inline: var(--lu-space-1) auto; }
+      :host(:is([mode="bottom"], [mode="rail"])) .hint { top: 0; inset-inline: 0 auto; }
     }
     @media (prefers-reduced-motion: reduce) { .item { transition: none; } }
   `];

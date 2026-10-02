@@ -3,6 +3,7 @@ import "./pointer-override.ts";
 import { buildProblems, builtAt, scenarioLoaders, specimenLoaders, toolkitLoaders, type BuildProblem, type Loader } from "lucent-dev:index";
 import type { LuElementClass } from "../src/core/element.ts";
 import { defineElements } from "../src/define.ts";
+import type { defineLucent } from "../src/index.ts";
 import { HaFrame } from "./ha-frame.ts";
 import { HaPanelCustom, PANEL_PREFIX } from "./ha-panel.ts";
 import { HaCard, HaIcon, HaSvgIcon } from "./ha-standins.ts";
@@ -35,7 +36,7 @@ async function loadAll<T>(loaders: Loader<T>[], problems: BuildProblem[]): Promi
 }
 
 function captureErrors(lu: LuHarness): void {
-  window.addEventListener("error", (event) => lu.errors.push(`${event.message} (${event.filename}:${event.lineno})`));
+  window.addEventListener("error", (event) => (event.message.startsWith("ResizeObserver loop") ? lu.notes : lu.errors).push(`${event.message} (${event.filename}:${event.lineno})`));
   window.addEventListener("unhandledrejection", (event) => lu.errors.push(`unhandled rejection: ${String(event.reason)}`));
   const original = console.error.bind(console);
   console.error = (...args: unknown[]) => {
@@ -80,14 +81,24 @@ async function main(): Promise<void> {
   lu.builtAt = builtAt;
   lu.problems = [...buildProblems];
   const toolkit = await loadAll(toolkitLoaders, lu.problems);
-  const classes = new Set<LuElementClass>();
-  for (const { module } of toolkit) for (const value of Object.values(module)) if (isElementClass(value)) classes.add(value);
-  if (classes.size > 0) {
-    try {
-      lu.registry = defineElements("spec", [...classes]);
-    } catch (error) {
-      lu.problems.push({ file: "defineElements('spec', ...)", message: error instanceof Error ? error.message : String(error) });
+  // Like a consumer: `defineLucent({ prefix })` from src/index.ts. While that entry does not build yet, every element class the area barrels export is registered instead.
+  const scanned = new Set<LuElementClass>();
+  for (const { module } of toolkit) for (const value of Object.values(module)) if (isElementClass(value)) scanned.add(value);
+  const entry = toolkit.find(({ name }) => name === "index")?.module;
+  try {
+    if (typeof entry?.defineLucent === "function") {
+      const registry = (entry.defineLucent as typeof defineLucent)({ prefix: "spec" });
+      lu.registry = registry;
+      const missing = [...scanned].filter(({ luName }) => registry.tags[luName] === undefined);
+      if (missing.length > 0) {
+        lu.problems.push({ file: "src/all.ts", message: `ALL_ELEMENTS lacks ${missing.map(({ luName }) => luName).join(", ")} (a barrel exports them); the harness registered them anyway` });
+        defineElements("spec", missing);
+      }
+    } else if (scanned.size > 0) {
+      lu.registry = defineElements("spec", [...scanned]);
     }
+  } catch (error) {
+    lu.problems.push({ file: "defineLucent({ prefix: 'spec' })", message: error instanceof Error ? error.message : String(error) });
   }
   if (!customElements.get("spec-lu-root")) lu.problems.push({ file: "src/shell/root.ts", message: "spec-lu-root is not registered, so specimens render without the Lucent tokens (every specimen is wrapped in it)" });
   lu.loaded.push(...toolkit.map(({ name }) => `src/${name}`));

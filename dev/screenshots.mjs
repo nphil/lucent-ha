@@ -22,7 +22,7 @@ for (let at = 0; at < argv.length; at++) {
   }
 }
 if (options.help) {
-  console.log("usage: scripts/lu-browser node dev/screenshots.mjs [--out docs/specimen] [--force] [--theme a,b] [--device a,b] [--no-scenarios]");
+  console.log("usage: scripts/lu-browser node dev/screenshots.mjs [--out docs/specimen] [--force] [--theme a,b] [--device a,b] [--no-scenarios] [--pieces n]");
   process.exit(0);
 }
 
@@ -42,12 +42,14 @@ const record = (shot) => {
 
 /** Tallest piece of the page one picture may hold: Chrome refuses to paint more than 16384 px in one image. */
 const MAX_PIECE = 12000;
+/** `--pieces n` keeps only the first n pieces of a tall page (the files get big: a phone-width page is about 30000 px tall). */
+const MAX_PIECES = Number(options.pieces ?? Infinity);
 
 /** Photographs the whole page as <base>.png, or as <base>.png, <base>-2.png ... when it is taller than MAX_PIECE. Returns the files. */
 async function photographPage(page, width, base) {
   const height = await page.evaluate(() => document.scrollingElement.scrollHeight);
   const files = [];
-  for (let top = 0, piece = 1; top < height; top += MAX_PIECE, piece += 1) {
+  for (let top = 0, piece = 1; top < height && piece <= MAX_PIECES; top += MAX_PIECE, piece += 1) {
     const file = piece === 1 ? `${base}.png` : `${base}-${piece}.png`;
     await page.screenshot({ path: file, fullPage: true, clip: { x: 0, y: top, width, height: Math.min(MAX_PIECE, height - top) } });
     files.push(file);

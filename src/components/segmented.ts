@@ -116,7 +116,7 @@ export class LuSegmented extends LuElement {
       .picker { display: none; position: relative; }
       select { width: 100%; min-height: var(--lu-target); padding: 0 calc(var(--lu-space-3) + 24px) 0 var(--lu-space-4); border: 1px solid var(--lu-edge-raised); border-radius: var(--lu-radius-control); color: var(--lu-ink); background: var(--lu-glass-raised); color-scheme: inherit; font: 600 var(--lu-type-label)/1.2 var(--lu-font); appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
       select:disabled { opacity: var(--lu-material-disabled-opacity); cursor: not-allowed; }
-      .picker .icon { position: absolute; top: 50%; right: var(--lu-space-3); translate: 0 -50%; pointer-events: none; color: var(--lu-ink-2); }
+      .picker .icon { position: absolute; top: 50%; right: var(--lu-space-3); translate: 0 -50%; pointer-events: none; color: var(--lu-ink); }
       @container (max-width: 359px) {
         .tray:has(~ .picker) { display: none; }
         .picker { display: block; }

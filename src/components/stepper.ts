@@ -154,16 +154,15 @@ export class LuStepper extends LuElement {
       :host([disabled]) .label { color: var(--lu-ink-3); }
       .control { display: flex; flex: 0 1 auto; align-items: center; gap: var(--lu-space-2); min-width: 0; }
       .value { display: flex; align-items: center; justify-content: center; gap: var(--lu-space-1); min-width: 88px; min-height: var(--lu-target); padding: 0 var(--lu-space-3); border: 1px solid var(--lu-edge-raised); border-radius: var(--lu-radius-control); color: var(--lu-ink); background: var(--lu-material-well); box-shadow: var(--lu-neumorphic-inset); font: 600 var(--lu-type-body)/1 var(--lu-font); font-variant-numeric: tabular-nums; user-select: none; -webkit-user-select: none; }
-      .unit { color: var(--lu-ink-2); font-size: var(--lu-type-label); font-weight: 500; }
+      .unit { color: var(--lu-ink); font-size: var(--lu-type-label); font-weight: 500; }
       .step { border: 1px solid var(--lu-edge-raised); color: var(--lu-ink); background: var(--lu-glass-raised); box-shadow: var(--lu-highlight-rest); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
       .step:is(:active, [data-pressed]):not(:disabled) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); transition: none; }
       .step:disabled { opacity: var(--lu-material-disabled-opacity); cursor: not-allowed; }
       :host([disabled]) .value { opacity: var(--lu-material-disabled-opacity); }
       .error { flex: 1 1 100%; display: flex; align-items: flex-start; gap: var(--lu-space-2); margin: 0; color: var(--lu-ink); font: 500 var(--lu-type-label)/1.35 var(--lu-font); }
-      .error .icon { --lu-icon: 18px; margin-top: 1px; color: var(--lu-danger); }
+      .error .icon { --lu-icon: 18px; margin-top: 1px; color: color-mix(in srgb, var(--lu-danger) 30%, var(--lu-ink)); }
       .value[aria-invalid="true"] { border-color: var(--lu-danger); }
       @media (hover: hover) and (pointer: fine) { .step:hover:not(:disabled) { background-image: linear-gradient(var(--lu-material-hover-wash), var(--lu-material-hover-wash)); } }
-      @media (prefers-reduced-motion: reduce) { .step { transition: none; } }
     `,
   ];
 }

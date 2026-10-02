@@ -130,7 +130,7 @@ export class LuSlider extends LuElement {
       :host([hidden]) { display: none; }
       .slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--lu-space-3); align-items: center; color: var(--lu-ink); font: 500 var(--lu-type-label)/1.25 var(--lu-font); }
       .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .value { justify-self: end; color: var(--lu-ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .value { justify-self: end; color: var(--lu-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .control { position: relative; grid-column: 1 / -1; grid-row: 2; height: var(--lu-target); }
       :host([disabled]) .name { color: var(--lu-ink-3); }
       :host([disabled]) .control { opacity: var(--lu-material-disabled-opacity); }
@@ -142,10 +142,10 @@ export class LuSlider extends LuElement {
       input:focus-visible { box-shadow: none !important; }
       input::-webkit-slider-runnable-track { height: 100%; background: transparent; }
       input::-moz-range-track { height: 100%; background: transparent; }
-      input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--thumb); height: var(--thumb); margin-top: calc((var(--lu-target) - var(--thumb)) / 2); border: 2px solid var(--lu-ink); border-radius: 50%; background: var(--lu-canvas); box-shadow: var(--lu-highlight-raised), var(--lu-neumorphic-raised); transition: transform var(--lu-motion-press) var(--lu-ease-press); }
-      input::-moz-range-thumb { box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 2px solid var(--lu-ink); border-radius: 50%; background: var(--lu-canvas); box-shadow: var(--lu-highlight-raised), var(--lu-neumorphic-raised); transition: transform var(--lu-motion-press) var(--lu-ease-press); }
-      input:not(:disabled):active::-webkit-slider-thumb { transform: scale(var(--lu-scale-raised-button)); }
-      input:not(:disabled):active::-moz-range-thumb { transform: scale(var(--lu-scale-raised-button)); }
+      input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--thumb); height: var(--thumb); margin-top: calc((var(--lu-target) - var(--thumb)) / 2); border: 2px solid var(--lu-ink); border-radius: 50%; background: var(--lu-canvas); box-shadow: var(--lu-highlight-raised), var(--lu-neumorphic-raised); }
+      input::-moz-range-thumb { box-sizing: border-box; width: var(--thumb); height: var(--thumb); border: 2px solid var(--lu-ink); border-radius: 50%; background: var(--lu-canvas); box-shadow: var(--lu-highlight-raised), var(--lu-neumorphic-raised); }
+      input:not(:disabled):active::-webkit-slider-thumb { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); }
+      input:not(:disabled):active::-moz-range-thumb { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); }
       /* Keyboard focus lands on the thumb as light: a wash around it and a landing bar inside it. */
       input:focus-visible::-webkit-slider-thumb { box-shadow: var(--lu-highlight-raised), 0 0 0 6px var(--lu-focus-wash), inset 0 -4px 0 var(--lu-ink); }
       input:focus-visible::-moz-range-thumb { box-shadow: var(--lu-highlight-raised), 0 0 0 6px var(--lu-focus-wash), inset 0 -4px 0 var(--lu-ink); }
@@ -155,7 +155,6 @@ export class LuSlider extends LuElement {
         .control { grid-column: 2; grid-row: 1; }
         .value { grid-column: 3; grid-row: 1; }
       }
-      @media (prefers-reduced-motion: reduce) { input::-webkit-slider-thumb, input::-moz-range-thumb { transition: none; } }
       @media (forced-colors: active) { .track { border: 1px solid CanvasText; } .fill { background: Highlight; } input::-webkit-slider-thumb { background: ButtonFace; } }
     `,
   ];

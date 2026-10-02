@@ -9,10 +9,10 @@ page: `http://127.0.0.1:4180/harness.html`.
 | I want to | Command |
 |---|---|
 | see the page | open `http://127.0.0.1:4180/harness.html` (the server runs as the service `lucent-harness`; it is the only one) |
-| rebuild after changing code | `scripts/lu-run node dev/build.mjs` (about a second), then reload |
+| rebuild after changing code | `scripts/lu-run node dev/build.mjs` (about a second), then reload; `--strict` fails when a file had to be left out |
 | take a screenshot | `scripts/lu-browser node dev/shot.mjs --theme flat-light --device phone --only button --out /tmp/button.png` |
 | take them in every theme and two sizes | `scripts/lu-browser node dev/shot.mjs --theme all --device phone,smart --only button --out /tmp/button-{theme}-{device}.png` |
-| make the whole picture set | `scripts/lu-browser node dev/screenshots.mjs` (4 themes x 9 sizes into `docs/specimen/`) |
+| make the whole picture set | `scripts/lu-browser node dev/screenshots.mjs` (4 themes x 9 sizes into `docs/specimen/`; resumable, `--force` redoes, `--theme a,b --device a,b` narrows, `--pieces 1` keeps only the first 12000 px of tall pages) |
 | start the server (only if it is not running) | `node dev/serve.mjs` (port 4180; set `HARNESS_PORT` for a test copy) |
 
 Several themes or sizes in one `shot.mjs` run share one browser tab and one turn of the browser lock: always prefer one run over many.
@@ -53,7 +53,7 @@ In glass themes, specimen cells get the variables card-mod puts on every Lovelac
 | `ha-dialog` | `1` | registers the `ha-adaptive-dialog` stand-in |
 | `scenario` | scenario id | mounts `dev/scenarios/<id>.ts` as the panel instead of the specimen page |
 
-The toolbar changes the same things live and keeps the URL in step (no new history entries), so a reload or a pasted URL gives the same page.
+The toolbar changes the same things live and keeps the URL in step (no new history entries), so a reload or a pasted URL gives the same page. Its ☰ button sends `hass-toggle-menu`, like the menu button a real panel draws (Home Assistant draws none for a custom panel).
 
 ## `window.__lu`
 
@@ -64,12 +64,12 @@ The toolbar changes the same things live and keeps the URL in step (no new histo
 | `__lu.setTheme(name)`, `setPointer(mode)`, `setSafeArea([t,r,b,l])`, `setSurface(s)`, `setSidebar(s)`, `setKiosk(bool)`, `setDirection(d)`, `openDrawer(bool)`, `navigate(path, {replace})` | change the page live |
 | `__lu.hass`, `__lu.mock` | the current `hass` (a new object on every change, like Home Assistant) and its control surface: `mock.update(patch)`, `mock.disconnect()`, `mock.reconnect()`, `mock.onWS(type, handler)` answers `hass.callWS`, `mock.externalMessages` |
 | `__lu.query(sel)`, `__lu.queryAll(sel)` | `querySelector` that looks through shadow roots |
-| `__lu.errors`, `__lu.problems`, `__lu.loaded`, `__lu.specimens`, `__lu.registry` | what went wrong / what was loaded / the registered `spec-lu-*` tags |
+| `__lu.errors`, `__lu.notes`, `__lu.problems`, `__lu.loaded`, `__lu.specimens`, `__lu.registry` | uncaught errors and `console.error` calls / browser notices that are not errors (a "ResizeObserver loop" message) / files left out / what was loaded / the registered `spec-lu-*` tags |
 
 ## Adding a specimen
 
-Create `dev/specimens/<area>.ts` (the types are in `dev/specimen-types.ts`), then rebuild. The toolkit is registered with the prefix `spec`,
-so write the tags directly.
+Create `dev/specimens/<area>.ts` (the types are in `dev/specimen-types.ts`), then rebuild. The toolkit is registered with the prefix `spec` (through `defineLucent({ prefix: "spec" })` from `src/index.ts`, like a consumer does; a banner lists any element a barrel
+exports that `ALL_ELEMENTS` forgot), so write the tags directly.
 
 ```ts
 import { html } from "lit";
@@ -92,7 +92,9 @@ Icons: `<ha-icon icon="mdi:bird">` is a stand-in that draws the paths in `dev/md
 
 A scenario is a whole app-like page (shell, views, sheet, toasts) used as THE panel. Create `dev/scenarios/<id>.ts` exporting
 `scenario: Scenario` (`dev/scenario-types.ts`): `create()` returns the panel element; the harness appends it to `<ha-panel-custom>` and sets `hass`,
-`narrow`, `route` and `panel` on it, exactly as Home Assistant does. Open it with `?scenario=<id>`. `dev/screenshots.mjs` also shoots every scenario's first screen.
+`narrow`, `route` and `panel` on it, exactly as Home Assistant does. Open it with `?scenario=<id>`. `dev/screenshots.mjs` also shoots every scenario's first screen (`<theme>-<device>-<id>.png`).
+
+A specimen page is tall (a phone-width page is about 30000 px), and Chrome cannot paint more than 16384 px in one picture, so `screenshots.mjs` cuts it into pieces of 12000 px: `<theme>-<device>-specimen.png`, `-specimen-2.png`, ... (`index.json` lists them). Non-touch sizes are shot with `pointer=fine`, touch sizes report their own coarse pointer. In a full-page picture the docked sidebar only shows in the first piece (it is `position: fixed`, as in Home Assistant).
 
 ## What the Home Assistant frame does (and where the rules come from)
 

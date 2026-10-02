@@ -3,11 +3,20 @@ import { LuElement } from "../core/element.ts";
 import { renderIcon } from "../core/icon.ts";
 import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.ts";
 
-/** The danger pill: the label stays in the ordinary ink colour (red text on a tinted glass pill does not reach 4.5:1 in
- * every theme), the danger colour carries the border, the tint and the icon. Shared with the hold button. */
-export const DANGER_PILL_CSS = css`
-  .pill.danger { color: var(--lu-ink); background: color-mix(in srgb, var(--lu-danger) 18%, var(--lu-glass-raised)); border-color: color-mix(in srgb, var(--lu-danger) 55%, var(--lu-edge)); }
-  .pill.danger .icon { color: var(--lu-danger); }
+/** The look of the secondary and danger pills, shared with the hold button.
+ *
+ * In glass themes the card is see-through, so a translucent pill can end up with light text on a light patch of the
+ * wallpaper. The pill therefore sits on `--lu-reading` (a near-opaque page colour) with its usual glass wash laid over
+ * it as an inset shadow: the same look in flat themes, readable text in glass ones. The danger label stays in the
+ * ordinary ink colour (red text on a tinted pill does not reach 4.5:1 in every theme); the danger colour carries the
+ * border, the tint and the icon. */
+export const PILL_SURFACE_CSS = css`
+  .pill.secondary:not(:disabled, [aria-disabled="true"]) { background-color: var(--lu-reading); box-shadow: var(--lu-highlight-rest), inset 0 0 0 999px var(--lu-glass-raised); }
+  .pill.danger:not(:disabled, [aria-disabled="true"]) { color: var(--lu-ink); background-color: var(--lu-reading); border-color: color-mix(in srgb, var(--lu-danger) 55%, var(--lu-edge)); box-shadow: var(--lu-highlight-rest), inset 0 0 0 999px color-mix(in srgb, var(--lu-danger) 18%, var(--lu-glass-raised)); }
+  .pill.danger:not(:disabled, [aria-disabled="true"]) .icon { color: color-mix(in srgb, var(--lu-danger) 70%, var(--lu-ink)); }
+  @media (hover: hover) and (pointer: fine) {
+    .pill.secondary:hover:not(:disabled, [aria-disabled="true"]) { background-color: var(--lu-reading); box-shadow: var(--lu-highlight-rest), inset 0 0 0 999px var(--lu-material-hover-wash), inset 0 0 0 999px var(--lu-glass-raised); }
+  }
 `;
 
 export type LuButtonKind = "primary" | "secondary" | "danger" | "quiet";
@@ -107,7 +116,7 @@ export class LuButton extends LuElement {
   static styles = [
     BASE_CSS,
     CONTROLS_CSS,
-    DANGER_PILL_CSS,
+    PILL_SURFACE_CSS,
     css`
       :host { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
       :host([hidden]) { display: none; }
@@ -119,11 +128,10 @@ export class LuButton extends LuElement {
       .icon-button { color: var(--lu-ink); }
       .icon-button.secondary { background: var(--lu-glass-raised); box-shadow: var(--lu-highlight-rest); border: 1px solid var(--lu-edge-raised); }
       .icon-button.primary { color: var(--lu-accent-ink); background: var(--lu-accent); }
-      .icon-button.danger { color: var(--lu-danger); background: color-mix(in srgb, var(--lu-danger) 18%, var(--lu-glass-raised)); border: 1px solid color-mix(in srgb, var(--lu-danger) 55%, var(--lu-edge)); }
+      .icon-button.danger:not(:disabled, [aria-disabled="true"]) { color: color-mix(in srgb, var(--lu-danger) 70%, var(--lu-ink)); background: color-mix(in srgb, var(--lu-danger) 18%, var(--lu-glass-raised)); border: 1px solid color-mix(in srgb, var(--lu-danger) 55%, var(--lu-edge)); }
       /* Where the browser can pick black or white text for the theme's accent colour, the label stays readable even on a light accent. */
-      @supports (color: contrast-color(red)) { .pill.primary, .icon-button.primary { color: contrast-color(var(--lu-accent)); } }
+      @supports (color: contrast-color(red)) { .pill.primary:not(:disabled), .icon-button.primary:not(:disabled) { color: contrast-color(var(--lu-accent)); } }
       .button:disabled, .button[aria-disabled="true"] { cursor: not-allowed; }
-      .icon-button:is(:active, [data-pressed]):not(:disabled) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); }
       .icon-button:disabled, .text-button:disabled, .text-button[aria-disabled="true"], .icon-button[aria-disabled="true"] { opacity: var(--lu-material-disabled-opacity); }
       .button[aria-disabled="true"]:is(:active, [data-pressed]) { background-image: none; }
       @media (hover: hover) and (pointer: fine) {
@@ -136,7 +144,6 @@ export class LuButton extends LuElement {
       .loading { cursor: progress; }
       @media (prefers-reduced-motion: no-preference) { .spinner { animation: lu-spin 0.9s linear infinite; } }
       @keyframes lu-spin { to { transform: rotate(360deg); } }
-      @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
       @media (forced-colors: active) {
         .button { border: 1px solid ButtonText; }
         .button:disabled, .button[aria-disabled="true"] { border-color: GrayText; color: GrayText; }

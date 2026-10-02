@@ -3,7 +3,7 @@ import { after, afterEach, before, describe, it } from "node:test";
 import { ceilPx, chromeSizes, publishSizes } from "../src/shell/chrome-metrics.ts";
 import type { ChromeSizes } from "../src/shell/chrome-metrics.ts";
 import { ChromeMeter } from "../src/shell/chrome-meter.ts";
-import type { ChromeRegions, ChromeState } from "../src/shell/chrome-meter.ts";
+import type { ChromeRegions, ChromeState, FrameScheduler } from "../src/shell/chrome-meter.ts";
 import type { NavMode } from "../src/tokens/profile-model.ts";
 
 describe("ceilPx", () => {
@@ -108,6 +108,24 @@ class FakeResizeObserver {
   fire(): void { this.callback(); }
 }
 
+/** Animation frames a test runs by hand. */
+class FakeFrames implements FrameScheduler {
+  private next = 1;
+  readonly pending = new Map<number, () => void>();
+  request(callback: () => void): number {
+    const handle = this.next++;
+    this.pending.set(handle, callback);
+    return handle;
+  }
+  cancel(handle: number): void { this.pending.delete(handle); }
+  /** Runs every requested frame callback. */
+  flush(): void {
+    const callbacks = [...this.pending.values()];
+    this.pending.clear();
+    for (const callback of callbacks) callback();
+  }
+}
+
 /** An element with a size a test can change. */
 interface Box {
   width: number;
@@ -139,9 +157,10 @@ describe("ChromeMeter", () => {
       mode: state.mode,
       regions: { top: null, rail: null, dock: null, ...(state.regions as Partial<ChromeRegions>) },
     });
-    const meter = new ChromeMeter(host, read);
+    const frames = new FakeFrames();
+    const meter = new ChromeMeter(host, read, frames);
     const observer = () => FakeResizeObserver.instances[0] as FakeResizeObserver;
-    return { style, meter, observer, state };
+    return { style, meter, observer, state, frames };
   }
 
   it("watches the rendered regions and publishes their sizes straight away", () => {
@@ -153,15 +172,46 @@ describe("ChromeMeter", () => {
     assert.equal(style.values.get("--lu-rail-w"), "0px");
   });
 
-  it("republishes when the observer reports a resize, writing only what changed", () => {
+  it("publishes what the observer reports one frame later, never inside the observer's own callback, writing only what changed", () => {
     const dock = box(390, 91);
-    const { style, meter, observer } = setup({ mode: "bottom", regions: { top: box(390, 57), dock } });
+    const { style, meter, observer, frames } = setup({ mode: "bottom", regions: { top: box(390, 57), dock } });
     meter.sync();
     style.writes.length = 0;
     dock.height = 140;
     observer().fire();
+    assert.deepEqual(style.writes, [], "nothing is written from inside the observer callback");
+    frames.flush();
     assert.deepEqual(style.writes, ["set --lu-bottom-bar"]);
     assert.equal(style.values.get("--lu-bottom-bar"), "140px");
+  });
+
+  it("several reports in one frame are one publish", () => {
+    const dock = box(390, 91);
+    const { style, meter, observer, frames } = setup({ mode: "bottom", regions: { top: box(390, 57), dock } });
+    meter.sync();
+    style.writes.length = 0;
+    dock.height = 100;
+    observer().fire();
+    dock.height = 120;
+    observer().fire();
+    dock.height = 140;
+    observer().fire();
+    assert.equal(frames.pending.size, 1);
+    frames.flush();
+    assert.deepEqual(style.writes, ["set --lu-bottom-bar"]);
+    assert.equal(style.values.get("--lu-bottom-bar"), "140px");
+  });
+
+  it("a render that changes the layout publishes at once and makes the waiting frame unnecessary", () => {
+    const { style, meter, observer, frames, state } = setup({ mode: "bottom", regions: { top: box(844, 57), dock: box(844, 91) } });
+    meter.sync();
+    observer().fire();
+    assert.equal(frames.pending.size, 1);
+    state.mode = "rail";
+    state.regions = { top: box(844, 49), rail: box(72, 700), dock: box(844, 0) };
+    meter.sync();
+    assert.equal(frames.pending.size, 0);
+    assert.equal(style.values.get("--lu-rail-w"), "72px");
   });
 
   it("syncing again with the same regions and mode does not touch style", () => {
@@ -200,6 +250,15 @@ describe("ChromeMeter", () => {
     assert.equal(style.values.size, 0);
     meter.sync();
     assert.equal(style.values.get("--lu-bottom-bar"), "91px");
+  });
+
+  it("a frame that was waiting when the shell disconnected never writes into the disconnected shell", () => {
+    const { style, meter, observer, frames } = setup({ mode: "bottom", regions: { top: box(390, 57), dock: box(390, 91) } });
+    meter.sync();
+    observer().fire();
+    meter.disconnect();
+    frames.flush();
+    assert.equal(style.values.size, 0);
   });
 
   it("works without ResizeObserver (old WebViews): publishes once per sync", () => {

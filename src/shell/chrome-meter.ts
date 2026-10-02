@@ -18,20 +18,39 @@ export interface ChromeState {
   regions: ChromeRegions;
 }
 
+/** Where the observer's reports are published from: the next animation frame (the browser's own by default). */
+export interface FrameScheduler {
+  request(callback: () => void): number;
+  cancel(handle: number): void;
+}
+
+const browserFrames: FrameScheduler = {
+  request: (callback) => requestAnimationFrame(callback),
+  cancel: (handle) => cancelAnimationFrame(handle),
+};
+
 /** Measures the shell's chrome with a ResizeObserver and publishes the result as custom properties on the host,
  * so everything inside (the toast, sticky headers in views, focus scrolling) clears the bars by their real size
- * instead of a guessed one. */
+ * instead of a guessed one.
+ *
+ * What the shell changes itself (a render, a layout switch) is measured and published at once by `sync()`. What the
+ * observer reports later (a strip that grew) is published one frame later, from a frame callback: an observer callback
+ * must not change layout, because a panel whose content follows these variables would move an observed element in the
+ * middle of the delivery and the browser would log "ResizeObserver loop completed with undelivered notifications". */
 export class ChromeMeter {
   private readonly _host: HTMLElement;
   private readonly _read: () => ChromeState;
+  private readonly _frames: FrameScheduler;
   private _observer: ResizeObserver | undefined;
   private _watched: Element[] = [];
   private _mode: NavMode | undefined;
   private _published: ChromeSizes | null = null;
+  private _frame: number | null = null;
 
-  constructor(host: HTMLElement, read: () => ChromeState) {
+  constructor(host: HTMLElement, read: () => ChromeState, frames: FrameScheduler = browserFrames) {
     this._host = host;
     this._read = read;
+    this._frames = frames;
   }
 
   /** Call after every render: starts watching the regions that are rendered now, stops watching the ones that went
@@ -42,7 +61,7 @@ export class ChromeMeter {
     const unchanged = mode === this._mode && rendered.length === this._watched.length && rendered.every((element, index) => element === this._watched[index]);
     if (unchanged) return;
     if (typeof ResizeObserver !== "undefined") {
-      this._observer ??= new ResizeObserver(() => this.measure());
+      this._observer ??= new ResizeObserver(() => this._publishNextFrame());
       this._observer.disconnect();
       for (const element of rendered) this._observer.observe(element);
     }
@@ -53,14 +72,30 @@ export class ChromeMeter {
 
   /** Reads the sizes and publishes them (only the values that changed are written). */
   measure(): void {
+    this._cancelFrame();
     const { mode, regions } = this._read();
     const size = (element: Element | null, axis: "height" | "width"): number => (element ? element.getBoundingClientRect()[axis] : 0);
     const sizes = chromeSizes(mode, { top: size(regions.top, "height"), rail: size(regions.rail, "width"), dock: size(regions.dock, "height") });
     this._published = publishSizes(this._host.style, sizes, this._published);
   }
 
+  private _publishNextFrame(): void {
+    if (this._frame !== null) return;
+    this._frame = this._frames.request(() => {
+      this._frame = null;
+      this.measure();
+    });
+  }
+
+  private _cancelFrame(): void {
+    if (this._frame === null) return;
+    this._frames.cancel(this._frame);
+    this._frame = null;
+  }
+
   /** Stops watching and removes the published properties (the token defaults apply again). */
   disconnect(): void {
+    this._cancelFrame();
     this._observer?.disconnect();
     this._watched = [];
     this._mode = undefined;

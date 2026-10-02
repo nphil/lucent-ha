@@ -6,11 +6,13 @@ import { LuElement } from "../core/element.ts";
 import type { LuElementClass } from "../core/element.ts";
 import { deepActiveElement, isTextEntry, isTouchPrimary } from "../core/dom.ts";
 import { renderIcon } from "../core/icon.ts";
+import { findScroller } from "../core/scroller.ts";
+import type { LuScroller } from "../core/scroller.ts";
 import { pushLayer } from "../ha/layers.ts";
 import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.ts";
 import { LAYOUT, MOTION, SWIPE } from "../tokens/constants.ts";
 import { ICON_CLOSE } from "./sheet-icons.ts";
-import { SheetLifecycle, initialFocus, keyboardInset } from "./sheet-model.ts";
+import { SheetLifecycle, initialFocus, keyScroll, keyboardInset, scrolledTo } from "./sheet-model.ts";
 import type { SheetCloseReason } from "./sheet-model.ts";
 import { SwipeDismiss } from "./swipe.ts";
 import { showToast } from "./toast-event.ts";
@@ -38,6 +40,19 @@ const HA_EXIT_LIMIT_MS = 600;
 
 let warnedMissingHa = false;
 
+/** Elements that keep their own keys: fields move a caret, sliders and menus change value or selection. */
+const KEY_OWNERS = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], [role="spinbutton"], [role="listbox"], [role="combobox"], [role="menu"], [role="radiogroup"]';
+/** Elements Space presses. */
+const PRESSABLE = 'button, a[href], summary, [role="button"], [role="checkbox"], [role="switch"], [role="radio"], [role="tab"]';
+
+/** True when `element` is a scroller that can still move one more step in `direction` (-1 up, 1 down). */
+function canScrollFurther(element: HTMLElement, direction: -1 | 1): boolean {
+  if (element.scrollHeight <= element.clientHeight) return false;
+  const overflow = getComputedStyle(element).overflowY;
+  if (overflow !== "auto" && overflow !== "scroll") return false;
+  return direction < 0 ? element.scrollTop > 0 : element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+}
+
 /** One sheet for panels and cards: a bottom sheet on a phone, a side pane on a wide or short screen, a centred dialog in
  * between. Modal: the page behind is inert and cannot scroll, Tab stays inside, Escape, the scrim, the close button, a
  * swipe down (bottom sheet) and the system Back button all close it, and focus goes back to what opened it.
@@ -52,6 +67,8 @@ let warnedMissingHa = false;
  * - A touch screen never gets a text field focused on open (that would raise the keyboard over the sheet); the sheet
  *   itself takes focus. Mouse and keyboard users get the content's `autofocus` element. While open, the sheet keeps
  *   its bottom edge above the on-screen keyboard.
+ * - The page behind cannot be scrolled: wheel and keys are taken by the sheet, touch is kept inside it by CSS, and
+ *   anything else that moves the page (its own scrollbar, a script) is put back.
  * - Slots: default (the scrolling body), `footer` (pinned at the bottom), `actions` (buttons in the header).
  * - A toast raised from inside an open sheet (`showToast`) is shown by the sheet itself, because everything outside a modal
  *   dialog is inert and its Undo button could not be pressed; the page gets it when the sheet closes. */
@@ -92,6 +109,7 @@ export class LuSheet extends LuElement {
   private readonly _swipe: SwipeDismiss;
   private _opener: HTMLElement | null = null;
   private _scrimDown = false;
+  private _scrimUp = false;
   private _exitToken = 0;
   private _exitTimer: ReturnType<typeof setTimeout> | undefined;
   private _tracking = false;
@@ -99,6 +117,9 @@ export class LuSheet extends LuElement {
   private _viewportFrame = 0;
   private _haIntent: SheetCloseReason = "scrim";
   private _haClosedItself = false;
+  private _liftedAutofocus: HTMLElement[] = [];
+  private _scroller: LuScroller | null = null;
+  private _lockedTop = 0;
 
   constructor() {
     super();
@@ -197,27 +218,51 @@ export class LuSheet extends LuElement {
   /** Puts the sheet on screen. */
   private _present(): void {
     this._opener = deepActiveElement();
+    const touch = isTouchPrimary();
+    const autofocus = Array.from(this.querySelectorAll<HTMLElement>("[autofocus]"));
+    // Chrome's dialog focusing steps ignore `autofocus` on the dialog itself and focus the first `autofocus` element, or else
+    // the first control. On a touch screen the attribute is lifted for the moment the dialog opens, so no text field is
+    // ever focused (that would raise the on-screen keyboard); it is put back right after.
+    if (touch) this._liftAutofocus(autofocus);
     if (this._engine === "ha") {
       this._haClosedItself = false;
       this._haIntent = "scrim";
       this._haShown = true;
       this._haOpen = true;
+      this._lockPage(true);
       return;
     }
     const dialog = this._dialog;
     if (!dialog) throw new Error("lucent-ha: a sheet was opened before it was rendered.");
     dialog.removeAttribute("data-leaving");
     this._swipe.clear();
-    const target = this.querySelector<HTMLElement>("[autofocus]");
-    // The dialog carries `autofocus` itself, so showModal() puts focus on the dialog and never on a text field.
-    dialog.showModal();
-    if (initialFocus(isTouchPrimary(), target !== null) === "target") target?.focus({ preventScroll: true });
+    try {
+      dialog.showModal();
+    } finally {
+      this._restoreAutofocus();
+    }
+    // Focus lands on the sheet itself (a named container, nothing that opens the keyboard, nothing that Space or Enter
+    // would press), or for a mouse and keyboard user on the element the content asked for.
+    const target = initialFocus(touch, autofocus.length > 0) === "target" ? autofocus[0] : undefined;
+    (target ?? dialog).focus({ preventScroll: true });
     this._trackViewport(true);
+    this._lockPage(true);
+  }
+
+  private _liftAutofocus(elements: HTMLElement[]): void {
+    this._liftedAutofocus = elements;
+    for (const element of elements) element.removeAttribute("autofocus");
+  }
+
+  private _restoreAutofocus(): void {
+    for (const element of this._liftedAutofocus) element.setAttribute("autofocus", "");
+    this._liftedAutofocus = [];
   }
 
   /** Starts the exit: toasts go to the page, a swipe in progress lets go, the exit motion plays. */
   private _leave(reason: SheetCloseReason): void {
     this._swipe.abort();
+    this._lockPage(false);
     for (const toast of this._toastHost?.takeAll() ?? []) showToast(this, toast);
     this._exitToken += 1;
     const token = this._exitToken;
@@ -248,6 +293,8 @@ export class LuSheet extends LuElement {
   /** Everything the open sheet changed, undone. */
   private _reset(): void {
     clearTimeout(this._exitTimer);
+    this._restoreAutofocus();
+    this._lockPage(false);
     this._trackViewport(false);
     this._haShown = false;
     this._haOpen = false;
@@ -286,29 +333,75 @@ export class LuSheet extends LuElement {
     if (this._lifecycle.phase === "open" && !this._dialog?.open) this._lifecycle.close("api");
   };
 
-  /** Only a press that both started and ended on the scrim dismisses; dragging out of the sheet does not. */
+  /** Only a press that both started and ended on the scrim dismisses. A browser reports the click on the nearest common
+   * ancestor of where the press began and ended, so "began on the scrim, ended on the sheet" also arrives as a click on the
+   * scrim: the end of the press is checked on its own. */
   private _onScrimDown = (event: Event): void => {
     this._scrimDown = event.target === event.currentTarget;
+    this._scrimUp = false;
+  };
+
+  private _onScrimUp = (event: Event): void => {
+    this._scrimUp = event.target === event.currentTarget;
   };
 
   private _onScrimClick = (event: Event): void => {
-    if (this._scrimDown && event.target === event.currentTarget) this._lifecycle.close("scrim");
+    if (this._scrimDown && this._scrimUp && event.target === event.currentTarget) this._lifecycle.close("scrim");
     this._scrimDown = false;
+    this._scrimUp = false;
   };
 
   /** The page behind must not scroll. Wheel movement over anything in the sheet that cannot scroll that way (the scrim,
    * the header, a body that is short or already at its end) is cancelled before it can reach the page. */
   private _onWheel = (event: WheelEvent): void => {
     if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    const direction = event.deltaY < 0 ? -1 : 1;
     for (const node of event.composedPath()) {
       if (node === event.currentTarget) break;
-      if (!(node instanceof HTMLElement) || node.scrollHeight <= node.clientHeight) continue;
-      const overflow = getComputedStyle(node).overflowY;
-      if (overflow !== "auto" && overflow !== "scroll") continue;
-      const canScroll = event.deltaY < 0 ? node.scrollTop > 0 : node.scrollTop + node.clientHeight < node.scrollHeight - 1;
-      if (canScroll) return;
+      if (node instanceof HTMLElement && canScrollFurther(node, direction)) return;
     }
     event.preventDefault();
+  };
+
+  /** Scroll keys scroll whatever scrolls under the focused element, and with focus on the sheet itself or a header button
+   * that is the page behind. The sheet takes those keys: a scroller under the focus that can still move handles the key
+   * itself (the browser does that), anything else scrolls the sheet's body, never the page. Fields, sliders and menus keep
+   * their keys, and Space still presses a focused button. */
+  private _onKeydown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+    const scroll = keyScroll(event.key, event.shiftKey);
+    if (!scroll) return;
+    const path = event.composedPath();
+    const focused = path[0];
+    if (focused instanceof Element && (focused.matches(KEY_OWNERS) || (event.key === " " && focused.matches(PRESSABLE)))) return;
+    for (const node of path) {
+      if (node === event.currentTarget) break;
+      if (node instanceof HTMLElement && canScrollFurther(node, scroll.direction)) return;
+    }
+    event.preventDefault();
+    const body = this.renderRoot.querySelector<HTMLElement>(".body");
+    if (body) body.scrollTo({ top: scrolledTo(scroll, { top: body.scrollTop, height: body.clientHeight, scrollHeight: body.scrollHeight }) });
+  };
+
+  /** Keeps the page behind where it was. Wheel, touch and keys are stopped on the way in (above and in the CSS); this
+   * catches whatever else moves the page while a sheet is open (dragging the page's own scrollbar, find in page, a script)
+   * by putting it back. It never writes a style of the page, only its scroll position, and only when something moved it. */
+  private _lockPage(on: boolean): void {
+    if (on === (this._scroller !== null)) return;
+    if (on) {
+      const scroller = findScroller(this);
+      this._scroller = scroller;
+      this._lockedTop = scroller.top;
+      scroller.target.addEventListener("scroll", this._onPageScroll, { passive: true });
+      return;
+    }
+    this._scroller?.target.removeEventListener("scroll", this._onPageScroll);
+    this._scroller = null;
+  }
+
+  private _onPageScroll = (): void => {
+    const scroller = this._scroller;
+    if (scroller && scroller.top !== this._lockedTop) scroller.scrollTo(this._lockedTop);
   };
 
   private _onFooterSlot = (event: Event): void => {
@@ -365,6 +458,18 @@ export class LuSheet extends LuElement {
     }
   };
 
+  /** Home Assistant has put its dialog on screen: the lifted `autofocus` attributes go back, and a mouse and keyboard user gets
+   * the element the content asked for (Home Assistant's own lookup cannot see content that is passed through slots). On a
+   * touch screen a field that took focus anyway gives it up. */
+  private _onHaOpened = (event: Event): void => {
+    if (event.target !== event.currentTarget) return;
+    const touch = this._liftedAutofocus.length > 0 || isTouchPrimary();
+    const autofocus = this._liftedAutofocus.length > 0 ? this._liftedAutofocus : Array.from(this.querySelectorAll<HTMLElement>("[autofocus]"));
+    this._restoreAutofocus();
+    if (initialFocus(touch, autofocus.length > 0) === "target") autofocus[0]?.focus({ preventScroll: true });
+    else if (isTextEntry(deepActiveElement())) deepActiveElement()?.blur();
+  };
+
   private _onHaClosed = (event: Event): void => {
     // `closed` also bubbles up from a dialog nested in the content; only this dialog's own counts.
     if (event.target !== event.currentTarget) return;
@@ -385,7 +490,7 @@ export class LuSheet extends LuElement {
 
   private _renderHa(): TemplateResult {
     return html`<ha-adaptive-dialog .open=${this._haOpen} header-title=${this.heading} header-subtitle=${ifDefined(this.subheading || undefined)}
-      @closed=${this._onHaClosed} @keydown=${{ handleEvent: this._noteHaIntent, capture: true }} @click=${{ handleEvent: this._noteHaIntent, capture: true }}>
+      @opened=${this._onHaOpened} @closed=${this._onHaClosed} @keydown=${{ handleEvent: this._noteHaIntent, capture: true }} @click=${{ handleEvent: this._noteHaIntent, capture: true }}>
       <slot name="actions" slot="headerActionItems"></slot>
       <slot></slot>
       <slot name="footer" slot="footer"></slot>
@@ -394,9 +499,9 @@ export class LuSheet extends LuElement {
   }
 
   private _renderNative(): TemplateResult {
-    return html`<dialog tabindex="-1" autofocus aria-modal="true" aria-labelledby=${ifDefined(this.heading ? "title" : undefined)}
-      @cancel=${this._onCancel} @close=${this._onNativeClose} @wheel=${this._onWheel}>
-      <div class="scrim" @pointerdown=${this._onScrimDown} @click=${this._onScrimClick}>
+    return html`<dialog tabindex="-1" aria-modal="true" aria-labelledby=${ifDefined(this.heading ? "title" : undefined)}
+      @cancel=${this._onCancel} @close=${this._onNativeClose} @wheel=${this._onWheel} @keydown=${this._onKeydown}>
+      <div class="scrim" @pointerdown=${this._onScrimDown} @pointerup=${this._onScrimUp} @click=${this._onScrimClick}>
         <section class="panel${this._hasFooter ? " has-footer" : ""}">
           <div class="grab" data-sheet-grab>
             <div class="handle" data-sheet-handle aria-hidden="true"></div>
@@ -448,6 +553,7 @@ export class LuSheet extends LuElement {
         --_x: 0px; --_y: var(--lu-travel-layer); --_pad-bottom: 0px;
         position: relative; display: flex; flex-direction: column; width: min(100%, 640px); max-height: min(var(--lu-sheet-max, 90dvh), 820px); overflow: hidden;
         border: 1px solid var(--lu-edge); border-radius: var(--lu-radius-sheet); color: var(--lu-ink); background: var(--lu-sheet);
+        backdrop-filter: var(--ha-dialog-surface-backdrop-filter, none);
         box-shadow: var(--lu-highlight-rest), var(--lu-shadow-rest); animation: panel-in var(--lu-motion-layer) var(--lu-ease) both;
       }
 
