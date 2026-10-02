@@ -86,9 +86,11 @@ export const TOKENS_CSS = css`
     /* ---- light, depth, focus ---- */
     --lu-highlight-rest: inset 0 1px 0 color-mix(in srgb, var(--primary-text-color) 7%, transparent);
     --lu-highlight-raised: inset 0 1px 0 color-mix(in srgb, var(--primary-text-color) 18%, transparent);
-    --lu-shadow-rest: var(--ha-card-box-shadow, 0 24px 60px color-mix(in srgb, var(--primary-text-color) 14%, transparent));
-    --lu-shadow-raised: 0 10px 24px color-mix(in srgb, var(--primary-text-color) 22%, transparent);
-    --lu-shadow-pressed: 0 4px 10px color-mix(in srgb, var(--primary-text-color) 18%, transparent);
+    /* Shadows: rest is the theme's own card shadow (never a second one); raised, pressed and overlay are neutral black lighting, readable on light and dark. */
+    --lu-shadow-rest: var(--ha-card-box-shadow, none);
+    --lu-shadow-raised: 0 10px 24px rgba(0, 0, 0, .22);
+    --lu-shadow-pressed: 0 4px 10px rgba(0, 0, 0, .18);
+    --lu-shadow-overlay: var(--dialog-box-shadow, 0 16px 48px rgba(0, 0, 0, .28));
     --lu-neumorphic-light: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
     --lu-neumorphic-shade: color-mix(in srgb, var(--primary-background-color) 30%, transparent);
     --lu-neumorphic-raised: -2px -2px 4px var(--lu-neumorphic-light), 2px 2px 4px var(--lu-neumorphic-shade);
@@ -107,7 +109,8 @@ export const TOKENS_CSS = css`
     --lu-type-body: 16px;
     --lu-type-label: 14px;
     --lu-type-caption: 12px;
-    --lu-type-numeral: 20px;
+    --lu-type-numeral: tabular-nums;
+    --lu-type-numeral-size: 20px;
 
     /* ---- motion ---- */
     --lu-ease: cubic-bezier(.33, 1, .68, 1);

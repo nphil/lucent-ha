@@ -1,0 +1,11 @@
+{
+  "phone": { "width": 390, "height": 844, "touch": true, "label": "phone portrait" },
+  "phone-land": { "width": 844, "height": 390, "touch": true, "label": "phone landscape" },
+  "tablet": { "width": 820, "height": 1180, "touch": true, "label": "tablet portrait" },
+  "tablet-land": { "width": 1180, "height": 820, "touch": true, "label": "tablet landscape" },
+  "smart": { "width": 960, "height": 480, "touch": true, "label": "smart display (Echo Show class, touch, no hover)" },
+  "laptop": { "width": 1366, "height": 768, "touch": false, "label": "laptop" },
+  "desktop": { "width": 1280, "height": 800, "touch": false, "label": "desktop 1280x800" },
+  "fhd": { "width": 1920, "height": 1080, "touch": false, "label": "desktop 1080p" },
+  "qhd": { "width": 2560, "height": 1440, "touch": false, "label": "desktop 1440p" }
+}

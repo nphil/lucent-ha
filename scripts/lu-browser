@@ -1,4 +1,4 @@
 #!/bin/sh
-# Runs anything that opens a tab in the shared browser (CDP 127.0.0.1:43977): one at a time across every agent,
-# so the shared Chromium never holds more than one of our tabs, with the same memory caps as lu-run.
-exec flock /tmp/lucent-ha-browser.lock prlimit --as=4294967296 env NODE_OPTIONS=--max-old-space-size=768 "$@"
+# Runs anything that opens a tab in the shared browser (CDP 127.0.0.1:43977): one at a time across every lucent-ha
+# agent, so the shared Chromium never holds more than one of our tabs; lowest CPU priority; same memory caps as lu-run.
+exec flock /tmp/lucent-ha-browser.lock nice -n 15 ionice -c3 prlimit --as=4294967296 env NODE_OPTIONS="--max-old-space-size=768 --disable-wasm-trap-handler" "$@"

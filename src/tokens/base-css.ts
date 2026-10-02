@@ -24,12 +24,12 @@ export const BASE_CSS = css`
 `;
 
 /** Buttons: pills, icon buttons and text buttons. Class-based so a consumer can use the same look without a
- * nested element. Press styles use `:is(:active, [data-pressed])` + a wash so feedback also shows when reduced
- * motion removes the scale (see `trackPresses`). */
+ * nested element. Pressed = `:is(:active, [data-pressed])` + a wash (never a scale: a transform on press costs a
+ * layer promotion and 6-13 ms of main-thread work per press, measured on the Kestrel panel), with `transition: none`
+ * so the feedback lands in the first frame while the soft colour transition stays on release (see `trackPresses`). */
 export const CONTROLS_CSS = css`
-  .pill { display: inline-flex; align-items: center; justify-content: center; gap: var(--lu-space-2); min-height: var(--lu-target); padding: 0 var(--lu-space-5); border: 1px solid transparent; border-radius: var(--lu-radius-pill); cursor: pointer; font-size: var(--lu-type-label); font-weight: 600; text-decoration: none; transition: transform var(--lu-motion-press) var(--lu-ease-press), background-color var(--lu-motion-label) var(--lu-ease); }
-  .pill:is(:active, [data-pressed]):not(:disabled) { transform: scale(var(--lu-scale-pressed)); }
-  .pill:is(:active, [data-pressed]):not(:disabled), .icon-button:is(:active, [data-pressed]), .text-button:is(:active, [data-pressed]) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); }
+  .pill { display: inline-flex; align-items: center; justify-content: center; gap: var(--lu-space-2); min-height: var(--lu-target); padding: 0 var(--lu-space-5); border: 1px solid transparent; border-radius: var(--lu-radius-pill); cursor: pointer; font-size: var(--lu-type-label); font-weight: 600; text-decoration: none; transition: background-color var(--lu-motion-label) var(--lu-ease); }
+  .pill:is(:active, [data-pressed]):not(:disabled), .icon-button:is(:active, [data-pressed]), .text-button:is(:active, [data-pressed]) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); transition: none; }
   .pill.primary { color: var(--lu-accent-ink); background: var(--lu-accent); }
   .pill.secondary { color: var(--lu-ink); background: var(--lu-glass-raised); border-color: var(--lu-edge-raised); box-shadow: var(--lu-highlight-rest); }
   .pill.danger { color: var(--lu-danger); background: var(--lu-glass-raised); border-color: color-mix(in srgb, var(--lu-danger) 36%, var(--lu-edge)); }
