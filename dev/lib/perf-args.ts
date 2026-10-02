@@ -35,13 +35,13 @@ export const USAGE = `Usage: scripts/lu-browser node dev/perf-check.mjs [options
   --passes 6          scroll passes of about 2500 px (default: 6)
   --sheet-gate shown  judge the 220 ms sheet budget on the sheet appearing (shown) or on its enter motion ending (done)
   --out docs/perf     where latest.json and latest.md go (docs/perf or inside dev/out)
-  --require-quiet     refuse to run (exit 3) while the host load is 8 or more
+  --require-quiet     refuse to run (exit 3) while the host load is at or above the limit (PERF_MAX_LOAD, default 64; use PERF_MAX_LOAD=8 for a truly quiet host)
   --force             ignore results already in --out
   --cell-timeout 600  seconds before the watchdog closes a stuck tab
   --target harness    the scenario panel of the dev harness (the only target)
 
-Exit codes: 0 = no gate failed, 1 = a gate failed on a quiet host (or a load-proof number failed), 2 = cannot run (usage, server down, scenario
-missing), 3 = refused (--require-quiet on a busy host) or the watchdog stopped a stuck step.`;
+Exit codes: 0 = no gate failed, 1 = a gate failed within the load limit (or a load-proof number failed), 2 = cannot run (usage, server down, scenario
+missing), 3 = refused (--require-quiet over the load limit) or the watchdog stopped a stuck step.`;
 
 function list(text: string, known: readonly string[], what: string): string[] {
   if (text === "all") return [...known];

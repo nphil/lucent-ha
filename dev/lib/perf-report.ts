@@ -1,6 +1,6 @@
 /** Turns the results of a run into the table printed on the console and the markdown page (docs/perf/latest.md). Pure. */
 import { isFailure, type BudgetId, type StepName, type Verdict } from "./perf-budgets.ts";
-import { describeLoad, type LoadReading } from "./perf-load.ts";
+import { DEFAULT_LOAD_LIMIT, describeLoad, type LoadReading } from "./perf-load.ts";
 
 /** A table a step wants shown under its cell (per-control press costs, the tab switches one by one). */
 export interface DetailTable {
@@ -64,7 +64,7 @@ export function formatValue(value: number | null, unit: "ms" | ""): string {
 }
 
 export function cellTitle(cell: CellResult): string {
-  const tag = cell.provisional ? "PROVISIONAL" : "quiet host";
+  const tag = cell.provisional ? `PROVISIONAL (load ${cell.load.limit} or more)` : `load under ${cell.load.limit}`;
   return `${cell.size} ${cell.width}x${cell.height} | ${cell.theme} | cpu ${cell.cpu}x | ${describeLoad(cell.load)} | ${tag}`;
 }
 
@@ -108,7 +108,7 @@ export function renderMarkdown(result: PerfResult): string {
     "",
     `Measured ${result.generatedAt.slice(0, 16).replace("T", " ")} UTC against the scenario panel of the dev harness (\`?scenario=panel\`), ${result.config.runs} run${result.config.runs === 1 ? "" : "s"} per measurement, ${result.config.passes} scroll passes. See [docs/perf.md](../perf.md) for what each number means.`,
     "",
-    `**${result.cells.length} cells: ${counts.PASS} PASS, ${counts.FAIL} FAIL, ${counts.PROVISIONAL} PROVISIONAL.** PROVISIONAL = the host was busy (one-minute load 8 or more) while it was measured, so slow wall-clock numbers are not blamed on the toolkit; measure again on a quiet host.`,
+    `**${result.cells.length} cells: ${counts.PASS} PASS, ${counts.FAIL} FAIL, ${counts.PROVISIONAL} PROVISIONAL.** PROVISIONAL = the host's one-minute load was ${result.cells[0]?.load.limit ?? DEFAULT_LOAD_LIMIT} or more (or unknown) while the cell was measured, so slow wall-clock numbers are not blamed on the toolkit; measure again when the load is lower. The load is shown for every cell.`,
     "",
     summaryTable(result.cells),
   ];

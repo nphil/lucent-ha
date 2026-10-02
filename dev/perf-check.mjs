@@ -5,8 +5,8 @@
  *
  *   scripts/lu-browser node dev/perf-check.mjs --help
  *
- * Run it only through scripts/lu-browser (one tab, nice'd, memory-capped). The host load is read (scripts/lu-load) before and after every cell; at a one-minute
- * load of 8 or more the numbers are PROVISIONAL. It writes only to docs/perf or dev/out. */
+ * Run it only through scripts/lu-browser (one tab, nice'd, memory-capped). The host load is read (scripts/lu-load) before and after every cell and printed
+ * with it; at a one-minute load at or above the limit (PERF_MAX_LOAD, default 64: normal for this host) the numbers are PROVISIONAL. It writes only to docs/perf or dev/out. */
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -17,9 +17,12 @@ import { fileURLToPath } from "node:url";
 const { DEVICES, HARNESS, THEMES } = await import("./lib/browser.mjs");
 const { parseArgs, UsageError, USAGE } = await import("./lib/perf-args.ts");
 const { BUDGETS, budgetsOf, judge, stepsToRun } = await import("./lib/perf-budgets.ts");
-const { classifyLoad, parseLoad, QUIET_LOAD } = await import("./lib/perf-load.ts");
+const { classifyLoad, parseLoad, loadLimit } = await import("./lib/perf-load.ts");
 const { cellStatus, renderCell, renderMarkdown, resultFailed } = await import("./lib/perf-report.ts");
 const { measureCell, ScenarioMissing, StepHung } = await import("./lib/perf-steps.mjs");
+
+/** The one-minute load at or above which a cell is PROVISIONAL: PERF_MAX_LOAD, else the default (normal load for this host). */
+const LOAD_LIMIT = loadLimit(process.env.PERF_MAX_LOAD);
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exitWith = (message, code) => {
@@ -91,13 +94,13 @@ const wanted = budgetsOf(options.only);
 const plan = [];
 for (const size of options.sizes) for (const theme of options.themes) for (const cpu of options.cpu) plan.push({ size, theme, cpu, key: `${size}|${theme}|${cpu}` });
 const todo = plan.filter((cell) => !result.cells.some((done) => done.key === cell.key));
-console.log(`${plan.length} cells (${plan.length - todo.length} already in ${options.out}), steps: ${steps.join(", ")}, ${options.runs} run(s) each, quiet = load below ${QUIET_LOAD}${options.requireQuiet ? " (required)" : ""}`);
+console.log(`${plan.length} cells (${plan.length - todo.length} already in ${options.out}), steps: ${steps.join(", ")}, ${options.runs} run(s) each, load limit ${LOAD_LIMIT} (PERF_MAX_LOAD; a cell at or above it is PROVISIONAL)${options.requireQuiet ? ", required" : ""}`);
 
 for (const cell of todo) {
   const before = await readLoad();
-  if (options.requireQuiet && !(before !== null && before < QUIET_LOAD)) {
+  if (options.requireQuiet && !(before !== null && before < LOAD_LIMIT)) {
     save();
-    exitWith(`refusing to run: the host load is ${before ?? "unknown"} (needs to be below ${QUIET_LOAD}); ${result.cells.length} cell(s) saved in ${options.out}`, 3);
+    exitWith(`refusing to run: the host load is ${before ?? "unknown"} (needs to be below ${LOAD_LIMIT}); ${result.cells.length} cell(s) saved in ${options.out}`, 3);
   }
   console.log(`\n>> ${cell.key} (load ${before ?? "unknown"})`);
   const started = Date.now();
@@ -111,8 +114,8 @@ for (const cell of todo) {
     throw error;
   }
   const after = await readLoad();
-  const load = classifyLoad(before, after);
-  if (options.requireQuiet && !load.quiet) {
+  const load = classifyLoad(before, after, LOAD_LIMIT);
+  if (options.requireQuiet && !load.withinLimit) {
     save();
     exitWith(`discarded ${cell.key}: the host load rose to ${after ?? "unknown"} while it ran; ${result.cells.length} cell(s) saved in ${options.out}`, 3);
   }
@@ -120,8 +123,8 @@ for (const cell of todo) {
   if (stepErrors.sheet) stepErrors.back = stepErrors.sheet;
   const finished = {
     key: cell.key, size: cell.size, width: DEVICES[cell.size].width, height: DEVICES[cell.size].height, theme: cell.theme, cpu: cell.cpu,
-    startedAt: new Date(started).toISOString(), seconds: Math.round((Date.now() - started) / 1000), load, provisional: !load.quiet, calibrationMs: measured.calibrationMs,
-    page: measured.page, metrics: measured.metrics, verdicts: judge(measured.metrics, { cpu: cell.cpu, quiet: load.quiet, wanted, stepErrors, violations: measured.violations, labels: { sheetOpen: options.sheetGate === "done" ? "sheet open, tap to enter motion finished" : "sheet open, tap to sheet on screen" } }),
+    startedAt: new Date(started).toISOString(), seconds: Math.round((Date.now() - started) / 1000), load, provisional: !load.withinLimit, calibrationMs: measured.calibrationMs,
+    page: measured.page, metrics: measured.metrics, verdicts: judge(measured.metrics, { cpu: cell.cpu, withinLimit: load.withinLimit, wanted, stepErrors, violations: measured.violations, labels: { sheetOpen: options.sheetGate === "done" ? "sheet open, tap to enter motion finished" : "sheet open, tap to sheet on screen" } }),
     flaky: measured.flaky, notes: measured.notes, details: measured.details, raw: measured.raw,
   };
   result.cells.push(finished);

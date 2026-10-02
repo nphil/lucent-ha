@@ -10,8 +10,8 @@ The dev harness server must be running (`http://127.0.0.1:4180`, see [harness.md
 # quick look: one size, one theme, normal speed, one repeat (about a minute)
 scripts/lu-browser node dev/perf-check.mjs --sizes phone --themes flat-light --cpu 1 --runs 1 --out dev/out/perf-try
 
-# the real run (every size, flat-light + glass-dark, 1x and 4x CPU, 3 repeats); only on a quiet host
-scripts/lu-browser node dev/perf-check.mjs --require-quiet --cell-timeout 900
+# the real run (every size, flat-light + glass-dark, 1x and 4x CPU, 3 repeats), judged at the host's normal load
+scripts/lu-browser node dev/perf-check.mjs --cell-timeout 900
 ```
 
 | option | meaning (default) |
@@ -24,7 +24,7 @@ scripts/lu-browser node dev/perf-check.mjs --require-quiet --cell-timeout 900
 | `--passes 6` | scroll passes of about 2500 px, down and up in turn (6) |
 | `--sheet-gate shown\|done` | which sheet number the 220 ms budget judges, see below (`shown`) |
 | `--out docs/perf` | where `latest.json` and `latest.md` are written; only `docs/perf` and `dev/out/...` are allowed |
-| `--require-quiet` | refuse to run (exit 3) while the host load is 8 or more, and throw away a cell during which it rose |
+| `--require-quiet` | refuse to run (exit 3) while the host load is at or above the load limit (below), and throw away a cell during which it rose to it |
 | `--force` | ignore results already in `--out` |
 | `--cell-timeout 600` | seconds before the watchdog closes a stuck tab |
 
@@ -55,15 +55,15 @@ Every cell prints a table, `docs/perf/latest.md` has them all (with the per-cont
 | status | meaning |
 |---|---|
 | `PASS` | within the budget |
-| `FAIL` | over the budget and it counts: always for thread time, layout shift and a control without feedback; for every wall-clock number only when the host was quiet |
-| `PROVISIONAL` | over the budget, but the host was busy while it was measured, so the toolkit is not blamed. Measure again on a quiet host. |
-| `ERROR` | the measurement itself failed after two retries (the message says why). Counts as a failure only on a quiet host. |
+| `FAIL` | over the budget and it counts: always for thread time, layout shift and a control without feedback; for every wall-clock number when the host load was under the limit |
+| `PROVISIONAL` | over the budget, but the host load was at or above the limit (or unknown) while it was measured, so the toolkit is not blamed. Measure again when the load is lower. |
+| `ERROR` | the measurement itself failed after two retries (the message says why). Counts as a failure only when the host load was under the limit. |
 
-**Host load.** This machine is shared. `scripts/lu-load` (the one-minute load average) is read before and after every cell. At 8 or more the cell is tagged `PROVISIONAL` in its title and in every row; the same when the load could not be read. A busy host makes wall-clock times longer, never shorter, so a number that passes on a busy host is a real pass; the thread time and the layout shift do not depend on load and are always enforced. Nothing is ever "fixed" by running again until it is green: only a run with `--require-quiet` is evidence of a pass.
+**Host load.** This machine is shared and never idle: its normal one-minute load is 15 to 25 on 16 threads, so a "quiet window" is not something to wait for. `scripts/lu-load` (the one-minute load average) is read before and after every cell and printed with it. The limit is `PERF_MAX_LOAD` and defaults to **64**: wall-clock numbers are judged at normal load. Only a cell at or above the limit is tagged `PROVISIONAL` in its title and in every row; the same when the load could not be read. A busy host makes wall-clock times longer, never shorter, so a number that passes on a busy host is a real pass; the thread time and the layout shift do not depend on load and are always enforced. `PERF_MAX_LOAD=8` brings back the old "truly quiet host only" rule. Nothing is ever "fixed" by running again until it is green: a number is evidence only with the load printed next to it.
 
 `Flaky` lists the steps that needed a retry (a step is retried on a fresh page up to twice). A step that stops answering is abandoned by a watchdog: the tab is closed and the run stops with exit code 3, the cells finished so far stay in the results.
 
-Exit code: `0` nothing failed, `1` a budget failed (or, on a quiet host, could not be measured), `2` it could not run (bad option, server down, the sample panel is not built: the message says what to do), `3` refused by `--require-quiet` or stopped by the watchdog.
+Exit code: `0` nothing failed, `1` a budget failed (or, within the load limit, could not be measured), `2` it could not run (bad option, server down, the sample panel is not built: the message says what to do), `3` refused by `--require-quiet` or stopped by the watchdog.
 
 ## How it is built
 

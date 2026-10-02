@@ -64,8 +64,8 @@ export interface Verdict {
 
 export interface JudgeOptions {
   cpu: number;
-  /** The host load was below the limit before and after. */
-  quiet: boolean;
+  /** The host load was below the limit (`PERF_MAX_LOAD`, default 64) before and after. */
+  withinLimit: boolean;
   /** The budgets to report (the steps the user asked for). */
   wanted?: readonly BudgetId[];
   /** A step that could not be measured: its budgets get status ERROR with this message. */
@@ -76,9 +76,9 @@ export interface JudgeOptions {
   labels?: Partial<Record<BudgetId, string>>;
 }
 
-/** PASS when within the limit (inclusive). Over the limit it is FAIL if the number is enforced (load-proof numbers always, wall-clock numbers on a
- * quiet host) and PROVISIONAL otherwise: too slow, but the host was too busy to blame the toolkit. A passing wall-clock number on a busy host is
- * a real pass (a quiet host is never slower). A missing number is ERROR, enforced like a wall-clock number. */
+/** PASS when within the limit (inclusive). Over the limit it is FAIL if the number is enforced (load-proof numbers always, wall-clock numbers when
+ * the host load was within its limit) and PROVISIONAL otherwise: too slow, but the host was too busy to blame the toolkit. A passing wall-clock
+ * number on a busy host is a real pass (a quieter host is never slower). A missing number is ERROR, enforced like a wall-clock number. */
 export function judge(metrics: Partial<Record<BudgetId, number | null>>, options: JudgeOptions): Verdict[] {
   const wanted = new Set(options.wanted ?? BUDGETS.map((budget) => budget.id));
   const verdicts: Verdict[] = [];
@@ -87,7 +87,7 @@ export function judge(metrics: Partial<Record<BudgetId, number | null>>, options
     const limit = limitFor(budget, options.cpu);
     const value = metrics[budget.id] ?? null;
     const base = { id: budget.id, label: options.labels?.[budget.id] ?? budget.label, unit: budget.unit, value, limit };
-    const enforcedIfOver = budget.loadProof || options.quiet;
+    const enforcedIfOver = budget.loadProof || options.withinLimit;
     const violation = options.violations?.[budget.id];
     if (violation) {
       verdicts.push({ ...base, status: "FAIL", enforced: true, note: violation });
@@ -95,7 +95,7 @@ export function judge(metrics: Partial<Record<BudgetId, number | null>>, options
     }
     const stepError = options.stepErrors?.[budget.step];
     if (value === null || stepError) {
-      verdicts.push({ ...base, value: null, status: "ERROR", enforced: options.quiet, note: stepError ?? "not measured" });
+      verdicts.push({ ...base, value: null, status: "ERROR", enforced: options.withinLimit, note: stepError ?? "not measured" });
       continue;
     }
     if (value <= limit) verdicts.push({ ...base, status: "PASS", enforced: enforcedIfOver });

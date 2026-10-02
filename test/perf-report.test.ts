@@ -1,28 +1,36 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { judge } from "../dev/lib/perf-budgets.ts";
-import { classifyLoad, describeLoad, parseLoad, QUIET_LOAD } from "../dev/lib/perf-load.ts";
+import { DEFAULT_LOAD_LIMIT, classifyLoad, describeLoad, loadLimit, parseLoad } from "../dev/lib/perf-load.ts";
 import { cellStatus, formatValue, renderCell, renderMarkdown, resultFailed, type CellResult, type PerfResult } from "../dev/lib/perf-report.ts";
 import { maxOf, median, summarize } from "../dev/lib/perf-stats.ts";
 
+/** Cells are classified against a limit of 8 here so that "busy" means a small, obvious load in these examples. */
 const cell = (load: [number | null, number | null], metrics: Parameters<typeof judge>[0], overrides: Partial<CellResult> = {}): CellResult => {
-  const reading = classifyLoad(load[0], load[1]);
+  const reading = classifyLoad(load[0], load[1], 8);
   return {
     key: "phone|flat-light|1", size: "phone", width: 390, height: 844, theme: "flat-light", cpu: 1, startedAt: "2026-10-01T00:00:00Z", seconds: 12,
-    load: reading, provisional: !reading.quiet, calibrationMs: 40, page: { nodes: 900, images: null }, metrics,
-    verdicts: judge(metrics, { cpu: 1, quiet: reading.quiet }), flaky: [], notes: [], details: [{ title: "Press", columns: ["control", "ms"], rows: [["camera tile", 12]] }], raw: {}, ...overrides,
+    load: reading, provisional: !reading.withinLimit, calibrationMs: 40, page: { nodes: 900, images: null }, metrics,
+    verdicts: judge(metrics, { cpu: 1, withinLimit: reading.withinLimit }), flaky: [], notes: [], details: [{ title: "Press", columns: ["control", "ms"], rows: [["camera tile", 12]] }], raw: {}, ...overrides,
   };
 };
 const ok = { pressThread: 20, pressWall: 30, tabFirst: 60, tabStable: 200, sheetOpen: 150, back: 50, scrollLongTask: 0, cls: 0 };
 
-test("the load is quiet only when both readings are known and below 8", () => {
-  assert.equal(QUIET_LOAD, 8);
-  assert.equal(classifyLoad(3, 7.9).quiet, true);
-  assert.equal(classifyLoad(3, 8).quiet, false);
-  assert.equal(classifyLoad(9, 2).quiet, false);
-  assert.equal(classifyLoad(3, null).quiet, false);
-  assert.equal(classifyLoad(3, 12).max, 12);
-  assert.equal(classifyLoad(null, null).max, null);
+test("a load is within the limit only when both readings are known and below it", () => {
+  assert.equal(classifyLoad(3, 7.9, 8).withinLimit, true);
+  assert.equal(classifyLoad(3, 8, 8).withinLimit, false);
+  assert.equal(classifyLoad(9, 2, 8).withinLimit, false);
+  assert.equal(classifyLoad(3, null, 8).withinLimit, false);
+  assert.equal(classifyLoad(3, 12, 8).max, 12);
+  assert.equal(classifyLoad(null, null, 8).max, null);
+});
+
+test("a normal host load is within the default limit, PERF_MAX_LOAD overrides it, and a bad value means the default", () => {
+  assert.equal(classifyLoad(22, 25, DEFAULT_LOAD_LIMIT).withinLimit, true, "this host's normal load must not make a cell PROVISIONAL");
+  assert.equal(loadLimit(undefined), DEFAULT_LOAD_LIMIT);
+  assert.equal(loadLimit("8"), 8);
+  assert.equal(loadLimit("24.5"), 24.5);
+  for (const bad of ["", "eight", "0", "-3", "NaN"]) assert.equal(loadLimit(bad), DEFAULT_LOAD_LIMIT, bad);
 });
 
 test("load text is read leniently and unknown text is not a number", () => {
