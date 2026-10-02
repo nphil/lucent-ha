@@ -76,6 +76,8 @@ import { LuButton, LuChip, defineElements } from "lucent-ha";
 const lu = defineElements("aquarium", [LuButton, LuChip]);   // <aquarium-lu-button>, <aquarium-lu-chip>
 ```
 
+Measured with esbuild (minified, Lit included): the whole toolkit is about 52 KB gzipped, a lean consumer with just a button and a chip about 13 KB (`scripts/consumer-test.mjs` prints both).
+
 Every area is also importable on its own: `lucent-ha/ha`, `/tokens`, `/shell`, `/view`, `/sheet`, `/grid`, `/state`, `/image`, `/audio`, `/components`, `/core`.
 
 ## What is inside
@@ -140,7 +142,7 @@ Browser tools use the shared Chromium (CDP `127.0.0.1:43977`). On this host run 
 
 ### Budgets
 
-Press feedback <= 50 ms; cached tab switch first paint <= 100 ms and stable <= 300 ms (<= 2x at 4x CPU); sheet open <= 220 ms; Back closes the top layer <= 100 ms; no long task > 50 ms while scrolling; layout shift <= 0.02. See [`docs/perf.md`](docs/perf.md) for the latest numbers and the host load they were taken under.
+Press feedback <= 50 ms; cached tab switch first paint <= 100 ms and stable <= 300 ms (<= 2x at 4x CPU); sheet open <= 220 ms; Back closes the top layer <= 100 ms; no long task > 50 ms while scrolling; layout shift <= 0.02. `dev/perf-check.mjs` measures them (real touch/mouse input, 1x and 4x CPU, press cost as thread time from a trace so it does not depend on host load). **v0.1.0 ships the tool, not final numbers:** the first runs happened on a busy host (load 24-37) and are marked PROVISIONAL; the quiet-window run is scheduled (see [`docs/perf.md`](docs/perf.md)). Layout shift measured 0 in every view-stack and shell run; the real-Home-Assistant check (`scripts/ha-check.mjs`) passes.
 
 ## Using it from Kestrel
 

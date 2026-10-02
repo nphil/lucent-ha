@@ -127,10 +127,11 @@ describe("ImageUrlCache", () => {
   it("reports a failed download as null and does not cache the failure", async () => {
     const t = setup();
     const results: Array<string | null> = [];
-    t.cache.acquire("/a", (url) => results.push(url));
+    const record = (url: string | null): void => { results.push(url); };
+    t.cache.acquire("/a", record);
     await t.settle("/a", new Response("nope", { status: 401 }));
     assert.deepEqual(results, [null]);
-    const retry = t.cache.acquire("/a", (url) => results.push(url));
+    const retry = t.cache.acquire("/a", record);
     assert.equal(t.requested.length, 2, "asked again");
     await t.settle("/a");
     assert.deepEqual(results, [null, "blob:1"]);
