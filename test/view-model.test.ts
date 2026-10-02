@@ -83,6 +83,40 @@ describe("ViewStackModel: keeping views alive", () => {
   });
 });
 
+describe("ViewStackModel: a page the consumer took out of the page on its own", () => {
+  it("stops counting against the cap, so a page that still exists is not pushed out in its place", () => {
+    const model = new ViewStackModel({ max: 3 });
+    visit(model, "a", "b", "c");
+    assert.equal(model.release("b"), true);
+    assert.deepEqual(model.mounted, ["a", "c"]);
+    assert.deepEqual(model.show("d").evict, [], "a is still alive and stays");
+    assert.deepEqual(model.mounted, ["a", "c", "d"]);
+  });
+
+  it("never drops the showing page: its element may simply not be rendered yet", () => {
+    const model = new ViewStackModel({ max: 3 });
+    visit(model, "a", "b");
+    assert.equal(model.release("b"), false);
+    assert.deepEqual(model.mounted, ["a", "b"]);
+  });
+
+  it("ignores a page that is not kept alive", () => {
+    const model = new ViewStackModel();
+    visit(model, "a");
+    assert.equal(model.release("nope"), false);
+    assert.deepEqual(model.mounted, ["a"]);
+  });
+
+  it("keeps the remembered offset, as after an eviction, and showing it again builds it from scratch", () => {
+    const model = new ViewStackModel();
+    visit(model, "a", "b");
+    model.saveScroll("a", 640);
+    model.release("a");
+    assert.equal(model.scrollFor("a"), 640);
+    assert.equal(model.show("a").first, true);
+  });
+});
+
 describe("ViewStackModel: scroll memory", () => {
   it("a view that was never left has no remembered offset, so it starts at the top", () => {
     const model = new ViewStackModel();

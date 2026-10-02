@@ -133,6 +133,7 @@ export class LuViewStack extends LuElement {
 
   /** Settles what `current` changed to while the old view is still the one on screen. */
   private _decide(): void {
+    this._dropGone();
     // A restore that has not finished knows where the user really was; the scroller may be somewhere else yet.
     const pending = this._restorer.cancel();
     const leaving = this._model.current;
@@ -162,6 +163,14 @@ export class LuViewStack extends LuElement {
     for (const child of this.children) {
       const id = child.getAttribute("data-view");
       if (id !== null) child.toggleAttribute("inert", id !== current);
+    }
+    this._dropGone();
+  }
+
+  /** Views the consumer took out of the page on its own stop counting against `max`. */
+  private _dropGone(): void {
+    for (const id of [...this._model.mounted]) {
+      if (!this._viewElement(id)) this._model.release(id);
     }
   }
 
@@ -225,7 +234,8 @@ export class LuViewStack extends LuElement {
     :host { display: block; }
     /* A view that is not showing keeps its DOM and its layout state but is skipped by rendering. It is made a
        block first, so a view root that is a custom element (inline by default) is skipped too. */
-    ::slotted([data-view][inert]) { display: block; content-visibility: hidden; }
+    /* visibility: hidden as well: a view that collapses under content-visibility counts as one big layout shift when the page was not touched (system Back from a detail page measured CLS 0.706; with this rule 0.001). */
+    ::slotted([data-view][inert]) { display: block; content-visibility: hidden; visibility: hidden; }
     @supports not (content-visibility: hidden) { ::slotted([data-view][inert]) { display: none; } }
     /* The browser's own scroll anchoring would second-guess a restore that is holding an offset. */
     :host([restoring]) { overflow-anchor: none; }

@@ -241,6 +241,9 @@ export class LuSheet extends LuElement {
     } finally {
       this._restoreAutofocus();
     }
+    // The browser remembers the scroll position of a hidden element, so a sheet that was closed scrolled down would reopen
+    // scrolled down (and a swipe down would then scroll the body instead of closing the sheet): every opening starts at the top.
+    this.renderRoot.querySelector<HTMLElement>(".body")?.scrollTo({ top: 0 });
     // Focus lands on the sheet itself (a named container, nothing that opens the keyboard, nothing that Space or Enter
     // would press), or for a mouse and keyboard user on the element the content asked for.
     const target = initialFocus(touch, autofocus.length > 0) === "target" ? autofocus[0] : undefined;
@@ -316,6 +319,7 @@ export class LuSheet extends LuElement {
     if (this._lifecycle.phase !== "open") return;
     const host = this._toastHost;
     if (!host) return;
+    event.preventDefault();
     event.stopPropagation();
     host.show(event.detail);
   };
@@ -546,14 +550,14 @@ export class LuSheet extends LuElement {
       .scrim {
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
         padding: var(--lu-space-6) var(--lu-space-6) calc(var(--lu-space-6) + var(--lu-keyboard-inset, 0px));
-        touch-action: none; background: var(--lu-scrim); backdrop-filter: var(--ha-dialog-scrim-backdrop-filter, none);
+        touch-action: none; background: var(--lu-scrim); backdrop-filter: var(--lu-scrim-blur);
         animation: scrim-in var(--lu-motion-layer) var(--lu-ease) both;
       }
       .panel {
         --_x: 0px; --_y: var(--lu-travel-layer); --_pad-bottom: 0px;
         position: relative; display: flex; flex-direction: column; width: min(100%, 640px); max-height: min(var(--lu-sheet-max, 90dvh), 820px); overflow: hidden;
         border: 1px solid var(--lu-edge); border-radius: var(--lu-radius-sheet); color: var(--lu-ink); background: var(--lu-sheet);
-        backdrop-filter: var(--ha-dialog-surface-backdrop-filter, none);
+        backdrop-filter: var(--lu-sheet-blur);
         box-shadow: var(--lu-highlight-rest), var(--lu-shadow-rest); animation: panel-in var(--lu-motion-layer) var(--lu-ease) both;
       }
 

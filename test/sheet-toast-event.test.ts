@@ -56,8 +56,8 @@ describe("showToast", () => {
 
   it("the handle closes the toast on every registered host, and stops reaching a host that has gone", () => {
     const closed: string[] = [];
-    const offA = registerToastHost({ dismiss: (id) => closed.push(`A:${id}`) });
-    const offB = registerToastHost({ dismiss: (id) => closed.push(`B:${id}`) });
+    const offA = registerToastHost({ dismiss: (id) => closed.push(`A:${id}`), show: () => undefined });
+    const offB = registerToastHost({ dismiss: (id) => closed.push(`B:${id}`), show: () => undefined });
     const handle = showToast(new EventTarget(), { message: "x", id: "t1" });
     handle.dismiss();
     assert.deepEqual(closed.sort(), ["A:t1", "B:t1"]);
@@ -69,5 +69,32 @@ describe("showToast", () => {
     closed.length = 0;
     handle.dismiss();
     assert.deepEqual(closed, []);
+  });
+
+  it("a caller that CONTAINS the host (events only travel up) still gets its toast shown, by the nearest host inside it", () => {
+    // from -> shellRoot(host: shell) ... fake composed tree: toast hosts hang below the caller through parentNode / host links
+    const caller = new EventTarget() as EventTarget & { parentNode?: unknown; host?: unknown };
+    const shell = { parentNode: null, host: caller } as { parentNode: unknown; host: unknown };
+    const sheet = { parentNode: shell, host: undefined } as { parentNode: unknown; host: unknown };
+    const shown: string[] = [];
+    const nearHost = Object.assign(Object.create(null), { parentNode: shell, dismiss: () => undefined, show: (toast: { message: string }) => shown.push(`near:${toast.message}`) });
+    const deepHost = Object.assign(Object.create(null), { parentNode: sheet, dismiss: () => undefined, show: (toast: { message: string }) => shown.push(`deep:${toast.message}`) });
+    const offDeep = registerToastHost(deepHost);
+    const offNear = registerToastHost(nearHost);
+    showToast(caller, { message: "hello" });
+    assert.deepEqual(shown, ["near:hello"]);
+    offDeep();
+    offNear();
+  });
+
+  it("a toast that a host handled (preventDefault) is not shown a second time by the fallback", () => {
+    const caller = new EventTarget();
+    const shown: string[] = [];
+    caller.addEventListener("lu-toast", (event) => { event.preventDefault(); shown.push("handled"); });
+    const host = Object.assign(Object.create(null), { parentNode: caller, dismiss: () => undefined, show: () => shown.push("fallback") });
+    const off = registerToastHost(host);
+    showToast(caller, { message: "once" });
+    assert.deepEqual(shown, ["handled"]);
+    off();
   });
 });

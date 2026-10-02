@@ -14,7 +14,9 @@ Tags are `<prefix>-lu-image`, `<prefix>-lu-media-rail`, `<prefix>-lu-audio-playe
 | `ratio` | `"4/3"` | Width-to-height of the box: `"4/3"`, `"16/10"`, `"1"` ... Anything else falls back to 4/3. |
 | `fit` | `"cover"` | `"cover"` or `"contain"`. |
 | `priority` | `"auto"` | `"high"` loads at once with `fetchpriority=high` (use for the first row). `"auto"` waits until the picture is within 200 px of the screen. `"low"` waits and asks the browser to go last. |
-| `widths` (JS only) | unset | Sizes your server serves, e.g. `[160, 320, 640]`. Makes the picture ask for the right size through `sizedUrl`. |
+| `widths` (JS only) | unset | Sizes your server serves, e.g. `[160, 320, 640]`. Makes the picture ask for the right size through `sizedUrl`. Only set it for a route that really resizes: the toolkit cannot know. |
+| `sizeParam` (`size-param`) | `"width"` | Query parameter that carries the width. `width` is the one extra parameter Home Assistant's signed media links accept. |
+| `retryParam` (`retry-param`) | none | Optional query parameter (added as `=1`) on the one retry, only for servers that accept it. |
 | `authed`, `cache` (JS only) | `false` | `authed` plus an `ImageUrlCache` downloads the picture with your login (see below). |
 
 Events (bubbling, composed): `lu-image-load {src}`, `lu-image-error {src}` (after the retry failed).
@@ -25,20 +27,22 @@ What it does for you:
 - **One shared observer.** Every picture on the page uses the same IntersectionObserver and the same ResizeObserver.
 - **No layout shift.** The box has its final shape from the first frame; the placeholder (`--lu-tile`) is static, never pulsing.
 - **Fade.** The picture fades in over `--lu-motion-card` (opacity only). No fade when it was already cached (arrives within ~60 ms), when `authed` finds it in the cache, or with reduced motion.
-- **Retry once, then fall back.** A failed picture is asked for again after one second (with `lu_retry=1` added to the address); if that fails too the `fallback` slot shows and `lu-image-error` fires.
+- **Retry once, then fall back.** A failed picture is asked for again after one second (the very same address, after a fresh request: a signed Home Assistant link rejects any extra query parameter, so nothing is added unless you set `retryParam`); if that fails too the `fallback` slot shows and `lu-image-error` fires.
 - **Right size.** With `widths`, the picture measures its own width and asks for the smallest size that is at least width x screen density (density capped at 3). If the box later gets bigger (rotation, resize) the picture upgrades in place, without blinking; it never downgrades.
 - A new `src` shows the placeholder again until the new picture is there.
 
-### `sizedUrl(url, cssWidth, dpr, options?)` and the `?w=` contract
+### `sizedUrl(url, cssWidth, dpr, options?)` and the `?width=` contract
 
 ```ts
-sizedUrl("/api/photo.jpg", 175, 2, { widths: [160, 320, 640] }); // "/api/photo.jpg?w=640"
+sizedUrl("/api/photo.jpg", 175, 2, { widths: [160, 320, 640] }); // "/api/photo.jpg?width=640"
 ```
-- Rounds **up** to the smallest whitelisted width that is at least `cssWidth x dpr`; clamps to the largest. Defaults: widths `80, 160, 256, 512, 1024`, parameter `w`, density cap 3 (`options.widths`, `options.param`, `options.maxDpr`).
-- Keeps an existing query and `#fragment`; replaces an existing `w`. `data:`, `blob:` and other schemes are returned unchanged, as is a URL when the width is not a positive number.
+- Rounds **up** to the smallest whitelisted width that is at least `cssWidth x dpr`; clamps to the largest. Defaults: widths `80, 160, 256, 512, 1024`, parameter `width`, density cap 3 (`options.widths`, `options.param`, `options.maxDpr`).
+- Keeps an existing query and `#fragment`; replaces an existing `width`. `data:`, `blob:` and other schemes are returned unchanged, as is a URL when the width is not a positive number.
 - `pickWidth(needed, widths)` and `withQueryParam(url, name, value)` are the two helpers it is made of.
 
-**What your server must do.** Accept `?w=<n>` on the picture route and answer with the picture scaled to `n` pixels wide (aspect ratio kept, never enlarged beyond the original), but only for the widths you list in `widths`; answer the original or HTTP 400 for others. Send long cache headers (the address is stable per width). If the address is signed (for example `authSig`), the signature must not cover the query string, or must be re-issued per width, otherwise `?w=` invalidates it.
+**The toolkit never assumes the server resizes.** `sizedUrl` only writes the number into the address; whether a smaller picture comes back is up to the route. So the app decides: pass `widths` only for a route that really scales pictures, and leave it out for one that does not (the picture then loads `src` as it is).
+
+**What a server must do** to be used with `widths`: accept `?width=<n>` on the picture route and answer with the picture scaled to `n` pixels wide (aspect ratio kept, never enlarged beyond the original), for the widths you list; answer the original for others. Send long cache headers (the address is stable per width). Home Assistant's signed media links (`authSig`) reject every extra query parameter except `width` (and `height`), which is why `width` is the default name: a signed link gets `?width=` appended and still verifies, and the same signed address is retried unchanged. Resizing itself is each integration's own business in Home Assistant; check that yours does it before listing `widths`.
 
 ### `ImageUrlCache`: pictures that need a login
 

@@ -7,7 +7,7 @@ Everything on this page is exported from the package root (`import { showToast }
 ## The idea in plain words
 
 - **It sits where the screen suggests.** A phone gets a bottom sheet with a handle; a wide or short screen (a laptop, a wall display, a phone held sideways) gets a pane against the right edge; in between it is a centred dialog. You do not choose, and the same markup works everywhere.
-- **Everything behind it is switched off.** You cannot tap, tab to or scroll the page behind an open sheet (it is a native modal `<dialog>` in the browser's top layer). Because it is in the top layer, a glass theme's `backdrop-filter` on `ha-card` cannot trap or clip it, in a card or anywhere else.
+- **Everything behind it is switched off.** You cannot tap, tab to or scroll the page behind an open sheet (it is a native modal `<dialog>` in the browser's top layer). The mouse wheel, a finger and the keyboard never reach the page; if anything else moves it (dragging the page's own scrollbar, a script), the sheet puts it back. Because it is in the top layer, a glass theme's `backdrop-filter` on `ha-card` cannot trap or clip it, in a card or anywhere else. The sheet never writes a style on `html` or `body`.
 - **Every way out works, and you are told which one was used.** Escape, a tap on the dimmed area, the close button (always there, 48 px), a swipe down (phones), the system Back button, or your own code. `lu-close` fires once, after it is gone, with the reason.
 - **The Back button closes the sheet and nothing else.** Opening a sheet adds one history entry, so Back (browser, Android, a mouse's side button) closes the sheet first and only then leaves the page. Cards must not touch history, so they turn this off (`history = false`).
 - **A phone never gets its keyboard thrown at it.** On open, focus goes to the sheet itself, not into a text field, so the on-screen keyboard stays down until the user taps a field. When it does come up, the sheet moves above it.
@@ -60,14 +60,17 @@ Safe areas are respected (`--lu-safe-*`): a bottom sheet pads its bottom, a side
 
 A close happens **once** per opening, whichever route gets there first. Opening it again while it is leaving waits for the exit and then opens it.
 
-**CSS.** The sheet reads the toolkit tokens (`--lu-sheet`, `--lu-scrim`, `--lu-edge`, `--lu-radius-sheet`, `--lu-sheet-max`, `--lu-safe-*`, `--lu-space-*`, `--lu-motion-layer`, `--lu-travel-layer` ...) and declares none. The one variable it sets is `--lu-keyboard-inset` on its own dialog (the height the on-screen keyboard covers); do not set it. The surface is `--lu-sheet`: Home Assistant's own dialog colour, so it stays readable in glass themes where `--lu-card` is see-through.
+**CSS.** The sheet reads the toolkit tokens (`--lu-sheet`, `--lu-scrim`, `--lu-edge`, `--lu-radius-sheet`, `--lu-sheet-max`, `--lu-safe-*`, `--lu-space-*`, `--lu-motion-layer`, `--lu-travel-layer` ...) and declares none. The one variable it sets is `--lu-keyboard-inset` on its own dialog (the height the on-screen keyboard covers); do not set it. The surface is `--lu-sheet`: Home Assistant's own dialog colour, so it stays readable in glass themes where `--lu-card` is see-through. Where the theme blurs its dialogs (Frosted Glass sets `--ha-dialog-surface-backdrop-filter`) the panel uses the same blur, exactly like Home Assistant's own dialogs; flat themes have none.
+
+**Every opening starts at the top**, even if the sheet was closed while scrolled down.
 
 **Marking content.** An element with `data-no-sheet-drag` never lets a swipe that starts inside it move the sheet. Sliders (`<prefix>-lu-slider`, `input[type=range]`, Home Assistant's slider elements, maps), text fields, selects and anything scrolled down are protected already.
 
 ### How focus and the keyboard behave
 
-- **Open:** focus goes to the sheet itself (the dialog has a name and is announced), never into a text field on a touch screen. With a mouse and keyboard, an element in the content that has the `autofocus` attribute is focused, like Home Assistant's own dialogs do.
+- **Open:** focus goes to the sheet itself (the dialog has a name and is announced), never into a text field on a touch screen, and never onto a button that Space or Enter would press by accident. With a mouse and keyboard, an element in the content that has the `autofocus` attribute is focused, like Home Assistant's own dialogs do. (Browsers focus the first `autofocus` element or the first control when a dialog opens; on a touch screen the sheet lifts the attribute for that moment and puts it back, so your markup keeps `autofocus` and still no keyboard pops up.)
 - **While open:** Tab and Shift+Tab stay inside; the page behind cannot take focus, scroll (wheel, touch, keyboard) or be tapped.
+- **Scroll keys** (arrows, Page Up/Down, Home, End, Space and Shift+Space) scroll the sheet's body, also when focus is on the sheet itself or a header button, and never the page behind. Fields, sliders and menus keep their own keys, and Space still presses a focused button.
 - **Close:** focus returns to the element that had it when the sheet opened.
 - **On-screen keyboard:** while open, the sheet follows the visual viewport (`visualViewport`), keeps its bottom edge above the keyboard and scrolls the focused field into view. A pinch-zoomed page is not mistaken for a keyboard.
 - **Reduced motion:** no travel, only a fade of at most 120 ms.
@@ -86,7 +89,7 @@ A sheet inside a sheet (put it in the outer sheet's content) opens on top; Back,
 <spec-lu-sheet heading="Species" .history=${false}> ... </spec-lu-sheet>
 ```
 
-`history = false` is the only thing a card has to do: the sheet then never touches history and adds no window listeners beyond the dialog's own events (and the visual viewport while it is open). A card's glass `backdrop-filter` cannot trap it, because it lives in the top layer. Back does not close a card's sheet; the close button, Escape, the scrim and a swipe do.
+`history = false` is the only thing a card has to do: the sheet then never touches history. At rest it has no window listeners at all; only while it is open does it listen to the visual viewport (the on-screen keyboard) and to the page's scroll (to keep the page where it was), and it lets go when it closes. A card's glass `backdrop-filter` cannot trap it, because it lives in the top layer. Back does not close a card's sheet; the close button, Escape, the scrim and a swipe do.
 
 ### Home Assistant's own dialog (`engine`)
 
@@ -172,4 +175,29 @@ Keep `open` in step with `lu-close`, as above: the sheet closes itself for Escap
 
 ## Limits and what was verified against what
 
-See the end of the slice report; the harness specimens are `sheet-*` and `toast` (group "Sheets and toasts").
+**Checked in a real browser** (the dev harness: headless Chrome 153 driven over the DevTools protocol, one tab; touch emulation with real finger events for phone 390x844, phone held sideways 844x390, Echo Show 960x480 and tablet 820x1180, a mouse for desktop 1280x800; flat and glass themes, light and dark, switched live with the sheet open):
+
+- Placement: bottom sheet, centred dialog, side pane at the sizes in the table above; surfaces, borders, handle, header action, footer and close button look right in all four themes.
+- All six ways out report the right reason, `open` flips at once, the exit finishes, focus returns to the opener (also when opened from the keyboard) and the history entry is gone again. A press that starts on the sheet never closes it.
+- The page behind: not focusable (Tab never reaches it), not scrollable by wheel, finger (scrim, header, body, body at its end, sideways swipes), or scroll keys; a scroll made by a script is put back; scrolling works again right after the sheet closed.
+- Touch: no text field is focused on open (search-field sheet), `autofocus` is still on the element afterwards; with a mouse the field is focused. Swipe down from the handle, the header or the body closes; a short drag springs back; a swipe starting in a text field or a scrolled body does not close it; sideways swipes do nothing (no browser history navigation).
+- On-screen keyboard: simulated with a fake `visualViewport` (a 300 px keyboard): the sheet's bottom edge sits at the keyboard's top edge, the focused field and the first candidate rows are visible, and it drops back when the keyboard goes away.
+- History: one entry per sheet; Back closes only the top sheet (the one below stays open); closing the lowest of three sheets fires exactly one `popstate` and all three report; a sheet opened and closed leaves no entry behind.
+- Toast: queue order, Undo runs once, error and Retry, pause while the pointer is over it (it survived 5.5 s over a 4 s toast and went 3.7 s after the pointer left), the toast raised inside a sheet is clickable and moves to the page when the sheet closes, it sits above the shell's bottom bar (57 px bar: 73 px from the screen edge) and at 16 px without one.
+- With the dev harness's `ha-adaptive-dialog` stand-in: all six routes, header action, footer, quick reopen, focus return.
+
+**Only checked against the stand-in, not against Home Assistant itself:** the whole `ha-adaptive-dialog` path. The stand-in is written from Home Assistant's source (properties, slots, `opened`/`closed`, the `(max-width: 870px), (max-height: 500px)` rule); the real element wraps webawesome's `wa-dialog`/`wa-drawer` and has its own swipe, focus and animation. What the sheet assumes about it: it closes itself on Escape, scrim and its close button and then fires `closed`; it reports how it was closed in no other way (the sheet works that out from the key and click on the way in); an element with `data-dialog="close"` closes it. Check these on a live Home Assistant before relying on `engine="ha"`.
+
+**Not verifiable here:** a real on-screen keyboard and real phones (iOS Safari handles `touch-action`, `overscroll-behavior` and `dvh` its own way; this was only run in Chrome), the physical Back button of Android, dragging the page's own scrollbar (a scripted scroll was used), the Home Assistant Companion app, and speed on a quiet machine. Speed was only glimpsed on a busy machine (load 20 to 36 on 16 threads): Back reached the sheet 3 to 6 ms after `history.back()` (`open` was already `false` and the exit motion had started in that same moment), and `lu-close` followed after the 180 ms exit motion. The budgets (sheet open: first visible frame within 220 ms; Back: within 100 ms) still have to be measured at 1x and 4x CPU slowdown on a quiet host.
+
+**Known limits**
+
+- Two sheets always sit at the same spot: the one below is hidden behind the one above when the upper one is larger.
+- A toast raised from the page (not from inside the sheet) while a sheet is open shows over the dimmed page but cannot be pressed until the sheet closes. Toasts with an action come from what the user just did, so they are raised inside the sheet or after it closed.
+- After a reload with a sheet open, the sheet is gone but its history entry stays. The layer manager steps over such an entry as soon as it exists, and the app shell makes it exist when it connects, so inside the shell one Back leaves the panel (`docs/api/shell.md`, "Back and sheets"). A page without the shell (a bare `lu-root mode="panel"`) must call `layerDepth()` once at start-up; without it, one Back lands on the same address and a second one leaves. Cards are not affected: they never open history entries.
+- The panel's `backdrop-filter` (glass themes) is the theme's own choice and costs what it costs on Home Assistant's dialogs.
+
+### Where `showToast` finds a host
+
+`showToast(from, options)` sends the `lu-toast` event up from `from`; the nearest app shell, root or open sheet around `from` shows the toast and marks the event handled. Events only travel up, so a caller that **contains** the shell (a panel's own methods calling `showToast(this, ...)`) is not under any host: in that case the toast is shown by the nearest toast host *inside* the caller (the shell's). If there is no host at all nothing is shown and one console warning says so.
+

@@ -8,6 +8,7 @@ import { LuToast } from "../sheet/toast.ts";
 import type { ToastEventDetail } from "../sheet/toast-event.ts";
 import { BASE_CSS } from "../tokens/base-css.ts";
 import { PanelProfile } from "../tokens/profile.ts";
+import type { ProfileState } from "../tokens/profile-model.ts";
 import { TOKENS_CSS } from "../tokens/tokens-css.ts";
 
 export type LuRootMode = "panel" | "card";
@@ -34,6 +35,11 @@ export class LuRoot extends LuElement {
   declare mode: LuRootMode;
 
   private _profile: PanelProfile | null = null;
+
+  /** The root's own width in px as last measured (0 before the first measurement). */
+  get panelWidth(): number { return this._profile?.width ?? 0; }
+  /** The device profile this root resolved: `{ profile, short, touch, nav }` (see `lu-profile-change`). */
+  get profile(): ProfileState | undefined { return this._profile?.state; }
   private _profileMode: LuRootMode | null = null;
   private _stopPresses: (() => void) | null = null;
 
@@ -68,7 +74,7 @@ export class LuRoot extends LuElement {
       this._profile.hostDisconnected();
       this.removeController(this._profile);
     }
-    this._profile = new PanelProfile(this, { mode: this.mode === "panel" ? "panel" : "card" });
+    this._profile = new PanelProfile(this, { mode: this.mode === "panel" ? "panel" : "card", onChange: (state) => { this.emit<ProfileState>("lu-profile-change", state); } });
     this._profileMode = this.mode;
   }
 
@@ -77,6 +83,7 @@ export class LuRoot extends LuElement {
     if (!toast) return;
     toast.show((event as CustomEvent<ToastEventDetail>).detail);
     // The nearest root shows it: a card inside an app shell must not toast twice.
+    event.preventDefault();
     event.stopPropagation();
   };
 

@@ -12,7 +12,8 @@ const LAYOUT_SLACK = 0.02;
 export interface SizedUrlOptions {
   /** The widths the server accepts. Default `DEFAULT_WIDTHS`. */
   widths?: readonly number[];
-  /** Query parameter that carries the width. Default `w`. */
+  /** Query parameter that carries the width. Default `width`: the one extra parameter Home Assistant's signed media
+   * links accept. */
   param?: string;
   /** Highest device-pixel-ratio worth serving. Default 3. */
   maxDpr?: number;
@@ -34,9 +35,10 @@ export function canResize(url: string): boolean {
   return !scheme || /^https?$/i.test(scheme[1] ?? "");
 }
 
-/** Asks a media route for a picture just big enough: the smallest whitelisted width that is at least
+/** Asks a media route for a picture just big enough (the server must resize: the helper cannot know; the caller decides
+ * by using it only for routes that do): the smallest whitelisted width that is at least
  * `cssWidth x dpr` (rounded UP, so a tile is never soft and caches see few distinct URLs), clamped to the
- * largest width. The width goes in the query (`?w=320`); an existing query and `#fragment` are kept, and an
+ * largest width. The width goes in the query (`?width=320`); an existing query and `#fragment` are kept, and an
  * existing parameter of the same name is replaced. Returns the URL unchanged when it cannot be resized
  * (`data:`, `blob:`, other schemes), when `cssWidth` is not a positive number, or when the whitelist is empty. */
 export function sizedUrl(url: string, cssWidth: number, dpr: number, options: SizedUrlOptions = {}): string {
@@ -45,7 +47,7 @@ export function sizedUrl(url: string, cssWidth: number, dpr: number, options: Si
   const ratio = Math.min(Number.isFinite(dpr) && dpr > 0 ? dpr : 1, maxDpr);
   const width = pickWidth(cssWidth * ratio, options.widths ?? DEFAULT_WIDTHS);
   if (width === null) return url;
-  return withQueryParam(url, options.param ?? "w", String(width));
+  return withQueryParam(url, options.param ?? "width", String(width));
 }
 
 /** Sets one query parameter, keeping the rest of the query and the fragment as they were. */

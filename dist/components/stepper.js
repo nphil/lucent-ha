@@ -1,0 +1,144 @@
+import { css, html, nothing } from "lit";
+import { LuElement } from "../core/element.js";
+import { renderIcon } from "../core/icon.js";
+import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.js";
+import { ICON_ALERT_CIRCLE, ICON_MINUS, ICON_PLUS } from "./controls-icons.js";
+import { applyKey, atLimit, clampToStep, decimalsFor, formatNumber, formatValueText, keyAction, nextValue, repeatDelayMs } from "./stepper-model.js";
+/** A number you nudge with minus and plus: label, value with unit, two 48px buttons.
+ *
+ * Press and hold a button to repeat (after 0.4 s, ten steps a second); the arrow keys, PageUp / PageDown (ten
+ * steps), Home and End work on the value. Values stay on the `min` + n x `step` grid, so 0.1 steps never show
+ * rounding noise. `value` follows the user's change and `lu-change` (detail `{ value }`) fires on every step,
+ * including repeats: debounce on your side if each change calls a device. Set `error` to show a message under the
+ * control (with an icon, not colour alone). Screen readers get a spin button with `aria-valuenow / min / max`. */
+export class LuStepper extends LuElement {
+    constructor() {
+        super();
+        this.holdRepeats = 0;
+        this.stopHold = () => {
+            clearTimeout(this.holdTimer);
+            this.holdTimer = undefined;
+            document.removeEventListener("visibilitychange", this.stopHold);
+        };
+        this.value = 0;
+        this.min = 0;
+        this.max = 100;
+        this.step = 1;
+        this.label = "";
+        this.unit = "";
+        this.error = "";
+        this.disabled = false;
+        this.decreaseLabel = "Decrease";
+        this.increaseLabel = "Increase";
+    }
+    get range() {
+        return { min: this.min, max: this.max, step: this.step };
+    }
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this.stopHold();
+    }
+    willUpdate(changed) {
+        if (changed.has("value") || changed.has("min") || changed.has("max") || changed.has("step"))
+            this.value = clampToStep(this.value, this.range);
+    }
+    /** Moves `steps` grid steps. Returns false when nothing changed (already at the limit). */
+    nudge(steps) {
+        return this.setValue(nextValue(this.value, steps, this.range));
+    }
+    setValue(value) {
+        if (this.disabled || value === this.value)
+            return false;
+        this.value = value;
+        this.emit("lu-change", { value });
+        return true;
+    }
+    startHold(direction, event) {
+        if (this.disabled || (event.pointerType === "mouse" && event.button !== 0))
+            return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        document.addEventListener("visibilitychange", this.stopHold);
+        this.holdRepeats = 0;
+        if (!this.nudge(direction))
+            return;
+        const repeat = () => {
+            this.holdTimer = setTimeout(() => {
+                if (!this.nudge(direction))
+                    return this.stopHold();
+                this.holdRepeats += 1;
+                repeat();
+            }, repeatDelayMs(this.holdRepeats));
+        };
+        repeat();
+    }
+    /** A click that is not from a pointer (keyboard, assistive technology) steps once; pointer presses stepped on down. */
+    onButtonClick(direction, event) {
+        if (event.detail === 0)
+            this.nudge(direction);
+    }
+    onKeydown(event) {
+        const action = keyAction(event.key);
+        if (this.disabled || action === null || event.altKey || event.ctrlKey || event.metaKey)
+            return;
+        event.preventDefault();
+        this.setValue(applyKey(this.value, action, this.range));
+    }
+    stepButton(direction) {
+        const down = direction < 0;
+        const blocked = this.disabled || atLimit(this.value, direction, this.range);
+        return html `<button class="icon-button step" type="button" tabindex="-1" aria-label=${`${down ? this.decreaseLabel : this.increaseLabel} ${this.label}`.trim()} ?disabled=${blocked}
+      @pointerdown=${(event) => this.startHold(direction, event)} @pointerup=${this.stopHold} @pointercancel=${this.stopHold} @lostpointercapture=${this.stopHold} @blur=${this.stopHold}
+      @click=${(event) => this.onButtonClick(direction, event)} @contextmenu=${(event) => event.preventDefault()}>${renderIcon(down ? ICON_MINUS : ICON_PLUS)}</button>`;
+    }
+    render() {
+        const shown = formatNumber(this.value, decimalsFor(this.range));
+        const text = formatValueText(shown, this.unit);
+        return html `<div class="field">
+      <span class="label" id="label">${this.label}</span>
+      <div class="control">
+        ${this.stepButton(-1)}
+        <div class="value" role="spinbutton" tabindex=${this.disabled ? nothing : 0} aria-labelledby="label" aria-valuenow=${this.value} aria-valuemin=${this.min} aria-valuemax=${this.max} aria-valuetext=${text}
+          aria-disabled=${this.disabled ? "true" : nothing} aria-invalid=${this.error ? "true" : nothing} aria-describedby=${this.error ? "error" : nothing} @keydown=${this.onKeydown}>
+          <span class="number">${shown}</span>${this.unit ? html `<span class="unit">${this.unit}</span>` : nothing}
+        </div>
+        ${this.stepButton(1)}
+      </div>
+      ${this.error ? html `<p class="error" id="error">${renderIcon(ICON_ALERT_CIRCLE)}<span>${this.error}</span></p>` : nothing}
+    </div>`;
+    }
+}
+LuStepper.luName = "stepper";
+LuStepper.properties = {
+    value: { type: Number },
+    min: { type: Number },
+    max: { type: Number },
+    step: { type: Number },
+    label: { type: String },
+    unit: { type: String },
+    error: { type: String },
+    disabled: { type: Boolean, reflect: true },
+    decreaseLabel: { type: String, attribute: "decrease-label" },
+    increaseLabel: { type: String, attribute: "increase-label" },
+};
+LuStepper.styles = [
+    BASE_CSS,
+    CONTROLS_CSS,
+    css `
+      :host { display: block; min-width: 0; }
+      :host([hidden]) { display: none; }
+      .field { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--lu-space-1) var(--lu-space-3); min-height: var(--lu-target); }
+      .label { flex: 1 1 8rem; min-width: 0; color: var(--lu-ink); font: 500 var(--lu-type-label)/1.25 var(--lu-font); overflow-wrap: anywhere; }
+      :host([disabled]) .label { color: var(--lu-ink-3); }
+      .control { display: flex; flex: 0 1 auto; align-items: center; gap: var(--lu-space-2); min-width: 0; }
+      .value { display: flex; align-items: center; justify-content: center; gap: var(--lu-space-1); min-width: 88px; min-height: var(--lu-target); padding: 0 var(--lu-space-3); border: 1px solid var(--lu-edge-raised); border-radius: var(--lu-radius-control); color: var(--lu-ink); background: var(--lu-material-well); box-shadow: var(--lu-neumorphic-inset); font: 600 var(--lu-type-body)/1 var(--lu-font); font-variant-numeric: tabular-nums; user-select: none; -webkit-user-select: none; }
+      .unit { color: var(--lu-ink); font-size: var(--lu-type-label); font-weight: 500; }
+      .step { border: 1px solid var(--lu-edge-raised); color: var(--lu-ink); background: var(--lu-glass-raised); box-shadow: var(--lu-highlight-rest); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+      .step:is(:active, [data-pressed]):not(:disabled) { background-image: linear-gradient(var(--lu-material-press-wash), var(--lu-material-press-wash)); transition: none; }
+      .step:disabled { opacity: var(--lu-material-disabled-opacity); cursor: not-allowed; }
+      :host([disabled]) .value { opacity: var(--lu-material-disabled-opacity); }
+      .error { flex: 1 1 100%; display: flex; align-items: flex-start; gap: var(--lu-space-2); margin: 0; color: var(--lu-ink); font: 500 var(--lu-type-label)/1.35 var(--lu-font); }
+      .error .icon { --lu-icon: 18px; margin-top: 1px; color: color-mix(in srgb, var(--lu-danger) 30%, var(--lu-ink)); }
+      .value[aria-invalid="true"] { border-color: var(--lu-danger); }
+      @media (hover: hover) and (pointer: fine) { .step:hover:not(:disabled) { background-image: linear-gradient(var(--lu-material-hover-wash), var(--lu-material-hover-wash)); } }
+    `,
+];

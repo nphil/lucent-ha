@@ -8,13 +8,14 @@ import { trackPresses } from "../core/press.ts";
 import type { LuScroller } from "../core/scroller.ts";
 import { createDeviceSettings } from "../ha/device-settings.ts";
 import { shouldEscapeNavigateBack } from "../ha/escape.ts";
+import { layerDepth } from "../ha/layers.ts";
 import { setKioskMode, showMenuButton, toggleHaMenu } from "../ha/menu.ts";
 import type { HomeAssistant } from "../ha/types.ts";
 import { LuToast } from "../sheet/toast.ts";
 import type { ToastEventDetail } from "../sheet/toast-event.ts";
 import { BASE_CSS, CONTROLS_CSS } from "../tokens/base-css.ts";
 import { PanelProfile } from "../tokens/profile.ts";
-import type { NavMode } from "../tokens/profile-model.ts";
+import type { NavMode, ProfileState } from "../tokens/profile-model.ts";
 import { TOKENS_CSS } from "../tokens/tokens-css.ts";
 import { ChromeMeter } from "./chrome-meter.ts";
 import { LuNav } from "./nav.ts";
@@ -101,6 +102,11 @@ export class LuAppShell extends LuElement {
   declare shortcuts: boolean;
 
   private readonly _profile: PanelProfile;
+
+  /** The panel's own width in px as last measured (0 before the first measurement). */
+  get panelWidth(): number { return this._profile.width; }
+  /** The device profile the shell works with: `{ profile, short, touch, nav }` (see `lu-profile-change`). */
+  get profile(): ProfileState { return this._profile.state; }
   private readonly _meter: ChromeMeter;
   private readonly _wallMode = new WallMode(setKioskMode);
   private _wallRestored = false;
@@ -123,7 +129,7 @@ export class LuAppShell extends LuElement {
     this.navMode = "auto";
     this.navLabel = "Sections";
     this.shortcuts = true;
-    this._profile = new PanelProfile(this, { mode: "panel", onChange: () => this._syncNavAttribute() });
+    this._profile = new PanelProfile(this, { mode: "panel", onChange: (state) => { this._syncNavAttribute(); this.emit<ProfileState>("lu-profile-change", state); } });
     this._meter = new ChromeMeter(this, () => ({
       mode: this._navMode(),
       regions: {
@@ -155,6 +161,9 @@ export class LuAppShell extends LuElement {
     window.addEventListener("keydown", this._onKeydown);
     this.addEventListener("lu-toast", this._onToast);
     this._stopPresses ??= trackPresses(this);
+    // A panel's Back handling must exist from the start. After a reload with a sheet open the sheet is gone but its history
+    // entry is not, and the layer manager steps over such a leftover the moment it is created; any layer function creates it.
+    layerDepth();
   }
 
   disconnectedCallback(): void {
@@ -219,6 +228,7 @@ export class LuAppShell extends LuElement {
     if (!toast) return;
     toast.show((event as CustomEvent<ToastEventDetail>).detail);
     // The nearest root shows it: a card inside the shell must not toast twice.
+    event.preventDefault();
     event.stopPropagation();
   };
 
@@ -336,5 +346,7 @@ declare global {
   interface HTMLElementEventMap {
     "lu-back": CustomEvent<undefined>;
     "lu-wall-change": CustomEvent<LuWallChangeDetail>;
+    /** The device profile changed (also fired by `lu-root`): detail is `{ profile, short, touch, nav }`. */
+    "lu-profile-change": CustomEvent<ProfileState>;
   }
 }

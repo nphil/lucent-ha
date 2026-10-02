@@ -11,12 +11,13 @@ export function parseRatio(ratio: string | undefined | null): string {
   return DEFAULT_RATIO;
 }
 
-/** The address a failed picture is asked for the second (and last) time: the same one with a cache-busting
- * query parameter, so a cached error response is not served again. `data:` and `blob:` addresses cannot take one and
- * are retried as they are. */
-export function retryUrl(url: string): string {
-  if (!canResize(url)) return url;
-  return withQueryParam(url, "lu_retry", "1");
+/** The address a failed picture is asked for the second (and last) time. By default the very same address: a signed
+ * link rejects any extra query parameter. A server that accepts one can name it (`retryParam`), and a cache-busting
+ * `<retryParam>=1` is added so a cached error response is not served again. `data:` and `blob:` addresses cannot take
+ * one and are retried as they are. */
+export function retryUrl(url: string, retryParam = ""): string {
+  if (!retryParam || !canResize(url)) return url;
+  return withQueryParam(url, retryParam, "1");
 }
 
 /** How long a picture waits before its one retry (ms). */

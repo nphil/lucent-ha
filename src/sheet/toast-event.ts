@@ -8,6 +8,7 @@ export type ToastEventDetail = ToastOptions & { id: string };
 /** Something that shows toasts and can close one by id (every connected `LuToast`). */
 export interface ToastHost {
   dismiss(id: string): void;
+  show(toast: ToastEventDetail): unknown;
 }
 
 const hosts = new Set<ToastHost>();
@@ -32,12 +33,34 @@ export function dismissToast(id: string): void {
  * If no host is present nothing is shown and nothing throws; the first time that happens a console warning says so. */
 export function showToast(from: EventTarget, toast: ToastOptions): ToastHandle {
   const detail: ToastEventDetail = { ...toast, id: toast.id ?? nextToastId() };
-  emit(from, "lu-toast", detail);
+  // A host (app shell, root, open sheet) that shows the toast calls preventDefault(). Events only travel UP, so when the caller
+  // is an element that CONTAINS the shell (a panel calling showToast(this, ...)), nothing up the tree handles it: then the toast
+  // goes to a host somewhere inside the caller.
+  const unhandled = emit(from, "lu-toast", detail, { cancelable: true });
+  if (unhandled) {
+    let nearest: ToastHost | undefined;
+    let nearestDistance = Infinity;
+    for (const host of hosts) {
+      const distance = distanceBelow(host as unknown as Node, from);
+      if (distance < nearestDistance) { nearest = host; nearestDistance = distance; }
+    }
+    nearest?.show(detail);
+  }
   if (hosts.size === 0 && !warned) {
     warned = true;
     console.warn("lucent-ha: showToast() found no toast host. Put your content inside the toolkit's root or app-shell element (they show toasts).");
   }
   return { id: detail.id, dismiss: () => dismissToast(detail.id) };
+}
+
+/** How many steps `node` is below `from` (looking through shadow roots); Infinity when it is not below it. */
+function distanceBelow(node: Node, from: EventTarget): number {
+  let steps = 0;
+  for (let current: Node | null = node; current; current = current.parentNode ?? (current as ShadowRoot).host ?? null) {
+    if (current === from) return steps;
+    steps += 1;
+  }
+  return Infinity;
 }
 
 declare global {

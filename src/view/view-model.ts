@@ -116,6 +116,16 @@ export class ViewStackModel {
     return this._mounted.splice(0, Math.max(0, this._mounted.length - this._max));
   }
 
+  /** The view's element left the page without being pushed out (the consumer removed it on its own): it no longer
+   * counts against `max`. The showing view stays, and the remembered scroll offset is kept, as after an eviction.
+   * Returns whether the view was dropped. */
+  release(id: string): boolean {
+    const at = this._mounted.indexOf(id);
+    if (at < 0 || id === this._current) return false;
+    this._mounted.splice(at, 1);
+    return true;
+  }
+
   saveScroll(id: string, top: number): void {
     this.memory.set(id, top);
   }

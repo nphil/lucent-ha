@@ -9,7 +9,7 @@ Everything on this page is exported from the package root (`import { swr, import
 - **Visited pages stay.** A page you have opened stays in the document, but is switched off: it cannot be focused, screen readers skip it and the browser does not draw it (`inert` + `content-visibility: hidden`). Coming back is a repaint, not a rebuild.
 - **At most 4 stay (`max`).** Open a fifth page and the one shown longest ago is pushed out: the stack tells you (`lu-view-evict`) and you remove its element. Memory stays small on a wall display that runs for weeks.
 - **Each page remembers its scroll position.** Leave a page at 1400 px, come back, and it is at 1400 px again, exactly. A page you never left starts at the top. The memory is kept at module level, so it also survives Home Assistant re-creating your panel (it does that when you switch panels, and after the panel was hidden for a few minutes).
-- **A returning page fades in** (180 ms, opacity only; none with reduced motion). The page you left disappears at once.
+- **A returning page fades in** (180 ms, opacity only; no fade with reduced motion). The page you left disappears at once: two tall pages at different scroll positions cannot be on screen together without moving things, and nothing here is allowed to shift.
 - **Pages are told** when they are shown or hidden, so a live camera can pause while its page is hidden.
 
 ## `<prefix>-lu-view-stack`
@@ -23,11 +23,13 @@ Put the pages inside as direct children, each with a unique `data-view` id, and 
 | `memoryKey` | `memory-key` | `"default"` | Names the scroll memory. Stacks with the same key share it (that is how a re-created panel finds its old positions), so give every stack on a page its own key. |
 | `scroller` | (none) | the shell's scroller, else the page | What scrolls. A `LuScroller` (`{ top, scrollTo(top), target, element }`), or just `{ top, scrollTo(top) }`. Leave it unset inside the app shell and on the page: the stack finds the shell's scroll area when the shell is in `scroll="contained"` mode, and the page otherwise. |
 
-**Method** `forgetScroll(id)`: the next time `id` is shown it starts at the top. Call it *before* showing a page that now holds different content under the same id (see the recipe below). It has no effect on the page that is showing.
+**Method** `forgetScroll(id)`: the next time `id` is shown it starts at the top. Call it *before* showing a page that now holds different content under the same id (see the recipe below). It does not move the page that is showing.
 
 **Slot** default: the pages. Anything without `data-view` is left alone.
 
-**Events** (they bubble and are composed; each is fired on the page's element, or on the stack itself when that page has no element yet):
+**Attribute** `restoring` (set by the stack, read only): present while the stack is holding a restored scroll position. Handy for CSS and tests; do not set it.
+
+**Events** (they bubble and are composed; each is fired on the page's element, or on the stack itself when that page has no element yet). TypeScript knows them: they are declared on `HTMLElementEventMap`.
 
 | Event | `detail` | When |
 |---|---|---|
@@ -40,9 +42,9 @@ Put the pages inside as direct children, each with a unique `data-view` id, and 
 ### Rules for the pages
 
 1. Each page is a **direct child** with `data-view="<id>"`, ids unique. A page's root must produce a box (a `div`, or a custom element; custom elements are made `display: block` while hidden, so `content-visibility` works even though they are inline by default). Put margins and padding on a wrapper inside the root, not on the root, because a hidden page's own margin would still take space.
-2. **Render pages keyed by id** (`repeat(ids, (id) => id, ...)` in Lit). Without keys Lit reuses one page's DOM for another when the list changes, which defeats keeping pages alive.
+2. **Render pages keyed by id** (`repeat(ids, (id) => id, ...)` in Lit). Without keys Lit reuses one page's DOM for another when the list changes, which defeats keeping pages alive. **Add new pages after the ones you already render**: a page inserted above the current one could make the browser shift the scroll position before the stack has remembered it.
 3. Do not set `inert`, `hidden` or `display` on a page yourself: the stack owns them.
-4. **Remove a page when told** (`lu-view-evict`), by dropping it from the list you render.
+4. **Remove a page when told** (`lu-view-evict`), by dropping it from the list you render. A page you take out on your own (not asked) simply stops counting against `max`; its remembered scroll position is kept, as after an eviction.
 5. **The first time a page is shown (or shown again after being pushed out) it does not fade.** It is still filling in, and a fade would only delay it.
 6. A page that is rendered but never shown yet is hidden like all the others.
 
@@ -50,10 +52,8 @@ Put the pages inside as direct children, each with a unique `data-view` id, and 
 
 1. The position of the page you leave is remembered (the exact offset; if its own restore had not finished, the offset it was still heading for).
 2. The page you leave is switched off; the new page is switched on.
-3. The new page is put back where it was left. If it is still too short (a skeleton waiting for data), the stack waits for its height to settle and keeps the offset while images or rows arrive. It lets go as soon as you touch, wheel, click or press a key, and gives up after 1.5 s (landing as close as the content allows).
+3. The new page is put back where it was left, before the browser paints. If it is still too short (a skeleton waiting for data), the stack waits for its height to settle and keeps the offset while images or rows arrive. It lets go as soon as you touch, wheel, click or press a key, and gives up after 1.5 s (landing as close as the content allows).
 4. The new page fades in; `lu-view-hidden`, `lu-view-shown` and any `lu-view-evict` fire.
-
-Nothing moves while this happens: the old page and the new page are never on screen together, so nothing below them shifts.
 
 ### Recipe: new content under the same id
 
@@ -73,28 +73,28 @@ import { defineLucent, readSwr, subscribeSwr, swr } from "lucent-ha";
 
 defineLucent({ prefix: "kestrel" });
 const TABS = [{ id: "wildlife", label: "Wildlife", icon: "mdi:bird" }, { id: "settings", label: "Settings", icon: "mdi:cog" }];
-const SPECIES = "kestrel/species";
 
 class KestrelPanel extends LitElement {
   static properties = { hass: { attribute: false }, view: { state: true }, alive: { state: true } };
   constructor() { super(); this.view = "wildlife"; this.alive = ["wildlife"]; }
-  connectedCallback() {
-    super.connectedCallback();
-    this._stop = subscribeSwr(SPECIES, () => this.requestUpdate());          // repaint when the answer changes
-    swr(SPECIES, () => this.hass.callWS({ type: "kestrel/species" }));        // last answer now, fresh one behind it
-  }
+  connectedCallback() { super.connectedCallback(); this._stop = subscribeSwr("kestrel/species", () => this.requestUpdate()); }
   disconnectedCallback() { super.disconnectedCallback(); this._stop(); }
+  load() { if (this.hass) swr("kestrel/species", () => this.hass.callWS({ type: "kestrel/species" })); }  // last answer now, fresh one behind it
+  willUpdate(changed) { if (changed.has("hass")) this.load(); }                                          // Home Assistant sets `hass` after the element exists
   render() {
-    const species = readSwr(SPECIES);
+    const species = readSwr("kestrel/species").data ?? [];
     return html`<kestrel-lu-app-shell heading="Kestrel" .hass=${this.hass} .destinations=${TABS} .current=${this.view}
         @lu-navigate=${(e) => { if (!this.alive.includes(e.detail.id)) this.alive = [...this.alive, e.detail.id]; this.view = e.detail.id; }}>
-      <kestrel-lu-view-stack .current=${this.view} memory-key="kestrel" @lu-view-evict=${(e) => { this.alive = this.alive.filter((id) => id !== e.detail.id); }}>
-        ${repeat(this.alive, (id) => id, (id) => html`<div data-view=${id}>${id === "wildlife" ? (species.data ?? []).map((s) => html`<p>${s.name}</p>`) : html`<p>${id}</p>`}</div>`)}
+      <kestrel-lu-view-stack .current=${this.view} memory-key="kestrel" @lu-view-shown=${() => this.load()}
+          @lu-view-evict=${(e) => { this.alive = this.alive.filter((id) => id !== e.detail.id); }}>
+        ${repeat(this.alive, (id) => id, (id) => html`<div data-view=${id}>${id === "wildlife" ? species.map((s) => html`<p>${s.name}</p>`) : html`<p>${id}</p>`}</div>`)}
       </kestrel-lu-view-stack>
     </kestrel-lu-app-shell>`;
   }
 }
 ```
+
+`load()` is cheap to call often: while the answer is fresh it fetches nothing. Calling it from `lu-view-shown` refreshes a page that has been hidden for a while.
 
 ## `swr`: show the last answer now, refresh behind it
 
@@ -112,11 +112,11 @@ await handle.revalidate();  // fetch again now: the Retry button
 
 | Function | What it does |
 |---|---|
-| `swr(key, fetcher, options?)` | Returns the handle above. Starts a request unless the data is fresh or a request is already running. Call it when your panel or page is created or shown, **not from `render()`**. Read `fetcher`'s `hass` inside the function (`() => this.hass.callWS(...)`), not from a variable captured earlier. |
-| `readSwr(key)` | The current snapshot (`data`, `error`, `loading`, `stale`, `updatedAt`) without fetching. A new object after every change, so `===` tells you whether anything changed. |
+| `swr(key, fetcher, options?)` | Returns the handle above. Starts a request unless the data is fresh or a request is already running. Call it when `hass` is there and when a page is shown, **not from `render()`**. The fetcher runs at once, so read `hass` inside it (`() => this.hass.callWS(...)`) and only call `swr` after `hass` exists. |
+| `readSwr(key)` | The current snapshot (`data`, `error`, `loading`, `stale`, `updatedAt`) without fetching. A new object after every change, so `===` tells you whether anything changed. A copy saved with `persist` is only read back by the first `swr()` call for that key. |
 | `subscribeSwr(key, callback)` | Calls `callback(snapshot)` after every change (request started, answer arrived, failure, mutation, clear). Returns the function that stops it. Call `requestUpdate()` in it. |
 | `mutateSwr(key, updater)` | Replaces the data now (`updater(current) => next`): an optimistic update. A request that is running is dropped, because it was asked for before the change and could overwrite it. Call `handle.revalidate()` once your write is done. |
-| `clearSwr(key?)` | Forgets one key, or everything (also the saved copies in storage). **Call it on sign-out or when the Home Assistant instance changes.** |
+| `clearSwr(key?)` | Forgets one key, or everything (also every saved copy this toolkit made in storage). **Call it on sign-out or when the Home Assistant instance changes.** |
 | `createSwrCache({ scheduler?, storage?, maxEntries? })` | A cache of your own with the same five operations (`swr`, `read`, `subscribe`, `mutate`, `clear`), for tests or when data must stay apart. |
 
 **Options** (`swr(key, fetcher, { ... })`; give every caller of a key the same options):
@@ -124,7 +124,7 @@ await handle.revalidate();  // fetch again now: the Retry button
 | Option | Default | Meaning |
 |---|---|---|
 | `maxAgeMs` | `30000` | How long an answer counts as fresh. After that, `swr()` shows it as stale and refreshes it. A failed key is tried again by `swr()` no sooner than this after the failure (a Retry button calls `revalidate()`, which always tries). |
-| `persist: { maxAgeMs }` | off | Also keep a copy in `localStorage`, so a *reloaded page* paints from it too. A copy older than this is ignored (Kestrel uses 6 h because its signed links last 12 h). Data must survive `JSON.stringify`. Writes are delayed 400 ms and merged. Change the key name when the data's shape changes (`"kestrel/cameras/v2"`). |
+| `persist: { maxAgeMs }` | off | Also keep a copy in `localStorage`, so a *reloaded page* paints from it too. A copy older than this is ignored (Kestrel uses 6 h because its signed links last 12 h). Data must survive `JSON.stringify`. Writes are delayed 400 ms and merged. Change the key name when the data's shape changes (`"kestrel/cameras/v2"`). Keys are shared by every app on the same Home Assistant address: start yours with your app's name. |
 
 **Rules it keeps**
 
@@ -137,9 +137,10 @@ await handle.revalidate();  // fetch again now: the Retry button
 ### Recipe: a re-created panel paints from memory
 
 ```ts
-// Anywhere the panel starts (connectedCallback):
+// When hass arrives (willUpdate):
 const cameras = swr("kestrel/cameras", () => this.hass.callWS({ type: "kestrel/cameras" }), { persist: { maxAgeMs: 6 * 3_600_000 } });
-this._cameras = cameras.data ?? [];        // switching panels and back: instant; reloading the page: instant too
+this._cameras = cameras.data ?? [];   // switching panels and back: instant (memory). Reloading the page: instant too (saved copy).
+// Later answers arrive through subscribeSwr("kestrel/cameras", ...) as in the recipe above.
 ```
 
 ## `importWithReload`: lazily loaded views after an app update
@@ -154,7 +155,7 @@ After an update the old file names are gone from the server, and a page that is 
 
 | Export | What it is |
 |---|---|
-| `ViewStackModel` | The bookkeeping: `show(id) -> { hide, show, evict, first }`, `clear()`, `trim()`, `max`, `current`, `mounted`, `saveScroll(id, top)`, `scrollFor(id)`, `forgetScroll(id)`. |
+| `ViewStackModel` | The bookkeeping: `show(id) -> { hide, show, evict, first }` (`first`: the page was not kept alive yet), `clear()`, `trim()`, `release(id)` (a page the consumer removed on its own stops counting against `max`), `max`, `current`, `mounted`, `saveScroll(id, top)`, `scrollFor(id)`, `forgetScroll(id)`. |
 | `createScrollMemory(limit?)`, `scrollMemoryFor(key)` | The per-view offsets. `scrollMemoryFor` is the module-level memory a stack with that `memory-key` uses (64 views per key, oldest forgotten first). |
 | `ScrollRestorer` | The restore algorithm: `begin(scroller, top)`, `cancel()`, `active`. Works on any `{ top, scrollTo(top), maxTop() }`; takes its clock, frames and user-input source as an `env` (`browserRestoreEnv()` is the default). |
 
@@ -165,3 +166,8 @@ After an update the old file names are gone from the server, and a page that is 
 - **Scroll anchoring.** While a restore is holding an offset the stack switches the browser's own scroll anchoring off for its pages (on the stack element, never on `html` or `body`), so late images cannot nudge the page.
 - **Live content.** Views are not destroyed, so anything running inside them keeps running unless it listens for `lu-view-hidden` / `lu-view-shown`.
 - **Reduced motion.** With `prefers-reduced-motion: reduce` there is no fade at all.
+- **See it.** The dev harness has two specimens: `view-stack` (scrolls inside the shell) and `view-stack-page` (the page itself scrolls, as in Home Assistant; open it alone with `?only=view-stack-page`).
+
+## Layout shift when a page is hidden
+
+A hidden page is `inert`, `content-visibility: hidden` and `visibility: hidden`. The last one matters: without it Chrome counts the hidden page collapsing as one big layout shift when nobody touched the page (for example system Back from a detail page: measured 0.706 against a gate of 0.02, and 0.001 with the rule).

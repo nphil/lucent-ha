@@ -23,12 +23,12 @@ type Phase = "waiting" | "loading" | "loaded" | "retrying" | "failed";
  *   200 px of the screen. `priority="high"` (the first row of a grid) skips the wait and sets `fetchpriority=high`;
  *   `"low"` hints the browser that it is not urgent.
  * - `widths` (a list such as `[160, 320, 640]`) makes the picture ask for the smallest size that is at least its
- *   own width x the screen's pixel density (see `sizedUrl`: the server must understand `?w=`). The width is
+ *   own width x the screen's pixel density (see `sizedUrl`: the server must resize for `?width=`). The width is
  *   measured by one shared ResizeObserver; a bigger box (rotation, resize) upgrades the picture in place.
  * - `authed` + `cache`: the picture is downloaded through the cache's fetcher (Bearer token) and shown from an
  *   object URL; the cache is reference counted, so a picture on screen is never revoked.
  * - It fades in over `--lu-motion-card` (opacity only), except when it was cached or the user prefers reduced motion.
- * - A failed picture is asked for once more after a second (cache-busting `lu_retry=1`); if that fails too the
+ * - A failed picture is asked for once more after a second (the same address; `retryParam` can add a cache-busting query for servers that allow one); if that fails too the
  *   `fallback` slot shows (default: a broken-picture icon) and `lu-image-error` fires.
  *
  * Needs the host's `--lu-*` tokens (the panel root, card root or `lu-root` provides them). */
@@ -44,6 +44,8 @@ export class LuImage extends LuElement {
     widths: { attribute: false },
     authed: { type: Boolean },
     cache: { attribute: false },
+    sizeParam: { type: String, attribute: "size-param" },
+    retryParam: { type: String, attribute: "retry-param" },
     _phase: { state: true },
     _url: { state: true },
   };
@@ -62,6 +64,10 @@ export class LuImage extends LuElement {
   /** Download through `cache` (needs it) instead of letting the browser fetch the address. */
   declare authed: boolean;
   declare cache: ImageUrlCache | undefined;
+  /** Query parameter that carries the wanted width. Default `width` (the one Home Assistant's signed links accept). */
+  declare sizeParam: string;
+  /** Query parameter added (as `=1`) to the one retry, for servers that accept it. Default none: a signed link would be rejected. */
+  declare retryParam: string;
   declare _phase: Phase;
   declare _url: string;
 
@@ -86,6 +92,8 @@ export class LuImage extends LuElement {
     this.widths = undefined;
     this.authed = false;
     this.cache = undefined;
+    this.sizeParam = "width";
+    this.retryParam = "";
     this._phase = "waiting";
     this._url = "";
   }
@@ -112,7 +120,7 @@ export class LuImage extends LuElement {
     if (changed.has("ratio")) this.style.setProperty("--lu-image-ratio", parseRatio(this.ratio));
     if (changed.has("src") || changed.has("authed") || changed.has("cache")) this._reset();
     if (changed.has("priority")) this._armVisibility();
-    if (changed.has("src") || changed.has("authed") || changed.has("cache") || changed.has("widths") || changed.has("priority")) this._sync();
+    if (changed.has("src") || changed.has("authed") || changed.has("cache") || changed.has("widths") || changed.has("sizeParam") || changed.has("priority")) this._sync();
   }
 
   protected override updated(): void {
@@ -169,7 +177,7 @@ export class LuImage extends LuElement {
     }
     if (!this.src || !this._seen || (sized && this._cssWidth <= 0)) return;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    const target = sized ? sizedUrl(this.src, this._cssWidth, dpr, { widths: this.widths }) : this.src;
+    const target = sized ? sizedUrl(this.src, this._cssWidth, dpr, { widths: this.widths, param: this.sizeParam }) : this.src;
     if (target === this._target) return;
     this._target = target;
     this._begin(target);
@@ -246,7 +254,7 @@ export class LuImage extends LuElement {
       return;
     }
     this._startedAt = performance.now();
-    this._url = retryUrl(target);
+    this._url = retryUrl(target, this.retryParam); // the failed <img> was removed when `_url` was cleared, so this is a fresh request
   }
 
   static override styles = css`

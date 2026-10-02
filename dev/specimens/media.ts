@@ -46,9 +46,9 @@ function makeTone(frequency: number, seconds: number): string {
   return `data:audio/wav;base64,${btoa(binary)}`;
 }
 
-/** What a media route with `?w=` does: a picture exactly as wide as asked. Used through `authed` + a cache. */
+/** What a media route with `?width=` does: a picture exactly as wide as asked. Used through `authed` + a cache. */
 async function resizingFetcher(url: string): Promise<Response> {
-  const width = Number(new URL(url, location.href).searchParams.get("w")) || 320;
+  const width = Number(new URL(url, location.href).searchParams.get("width")) || 320;
   const height = Math.round(width * 0.75);
   const canvas = document.createElement("canvas");
   canvas.width = width;

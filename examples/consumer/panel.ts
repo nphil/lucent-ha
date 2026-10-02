@@ -11,7 +11,7 @@ const lu = defineLucent({ prefix: PREFIX });
 const tag = (name: string) => unsafeStatic(lu.tag(name));
 
 class SamplePanel extends LitElement {
-  static styles = [TOKENS_CSS, BASE_CSS, css`:host { display: block; }`];
+  static styles = [TOKENS_CSS, BASE_CSS, css`:host { display: block; height: 360px; }`]; // a `scroll="contained"` shell fills its parent, so the parent needs a height
 
   render() {
     const shell = tag("app-shell");

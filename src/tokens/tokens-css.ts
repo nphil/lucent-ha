@@ -82,6 +82,9 @@ export const TOKENS_CSS = css`
     --lu-edge-y: 16px;
     --lu-gutter: 16px;
     --lu-blur: 0px;
+    /* Glass themes blur what is behind Home Assistant's own dialogs; sheets follow the same variables (T0 adds none of its own). */
+    --lu-sheet-blur: var(--ha-dialog-surface-backdrop-filter, none);
+    --lu-scrim-blur: var(--ha-dialog-scrim-backdrop-filter, none);
 
     /* ---- light, depth, focus ---- */
     --lu-highlight-rest: inset 0 1px 0 color-mix(in srgb, var(--primary-text-color) 7%, transparent);

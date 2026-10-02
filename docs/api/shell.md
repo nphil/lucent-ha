@@ -69,6 +69,10 @@ shape, so "you are here" also reads without colour. A press shows a wash at once
 | `lu-back` | none | The back arrow was pressed, or Escape was pressed with `leading="back"` and nothing else (a dialog, a text field, a toolkit sheet) wants the key. |
 | `lu-wall-change` | `{ wall }` | Wall mode switched on or off (also when it was restored from the device). |
 
+### Reading the device profile
+
+`shell.panelWidth` (the panel's own width in px, 0 before the first measurement) and `shell.profile` (`{ profile: "phone" | "tablet" | "desktop" | "smart", short, touch, nav }`) are read-only; the event `lu-profile-change` (detail = the same object, composed and bubbling) fires after the profile changed. `lu-root` has the same two properties and event. Use them when your own code needs the width (for example how many live previews fit), instead of measuring again.
+
 ### CSS variables and attributes the shell publishes
 
 Set on the shell itself, so everything inside inherits them:
@@ -111,6 +115,12 @@ key cap while hovered or keyboard-focused. Listeners exist only while the shell 
 
 The shell hosts a toast (`showToast(element, { message })` from anywhere inside it). The toast sits above the bottom bar and the safe area.
 
+### Back and sheets
+
+When the shell connects it makes sure the page's layer manager exists (it calls `layerDepth()` from the `ha` area). That is what lets the toolkit step over a
+sheet's leftover history entry after a reload with a sheet open, so one Back press leaves the panel instead of two. The shell never opens layers or writes
+history itself and never routes: sheets push their own entries, and you navigate on `lu-navigate`.
+
 ### Limits
 
 - The bottom bar is for 3 to 5 destinations. More are squeezed and their labels cut short.
@@ -135,6 +145,8 @@ click with Ctrl, Cmd, Shift, Alt or the middle button is left to the browser. It
 ## `root` (`LuRoot`)
 
 Declares the tokens, works out the device profile, gives its content instant press feedback and hosts a toast. No bar, no navigation.
+It does not touch history. A panel that uses `root mode="panel"` instead of the app shell should call `layerDepth()` (from `lucent-ha`) once when it starts,
+so the page's Back handling exists from the start (see "Limits" in `docs/api/ha.md`).
 
 | Property | Attribute | Default | What it does |
 |---|---|---|---|
